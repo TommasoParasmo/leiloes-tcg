@@ -1,26 +1,78 @@
 @import "tailwindcss";
+@import "./tokens.css";
 
+/* Tailwind v4: expõe os tokens Ultra Holo como utilitários (bg-surface, text-muted, rounded-lg...).
+   Os valores abaixo são os do tema escuro (padrão); tokens.css redefine as mesmas variáveis
+   para [data-theme="light"], então os utilitários trocam de tema sozinhos. */
+@theme {
+  --color-bg: #090A12;
+  --color-surface: #13141F;
+  --color-surface-2: #1E202F;
+  --color-line: #2B2D41;
+  --color-text: #EEF0FF;
+  --color-muted: #8A8EA8;
+  --color-accent: #7C5CFF;
+  --color-accent-hover: #8F73FF;
+  --color-accent-text: #A08BFF;
+  --color-on-accent: #FFFFFF;
+  --color-holo: #2FE6FF;
+  --color-live: #FF5C8A;
+  --color-win: #34D399;
+  --color-warn: #FBBF24;
+  --color-danger: #FF6B6B;
+
+  --font-display: var(--font-unbounded), "Manrope", system-ui, sans-serif;
+  --font-body: var(--font-manrope), system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 15px;
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+  --text-4xl: 40px;
+
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-pill: 999px;
+
+  --shadow-accent: 0 12px 34px -10px rgba(124, 92, 255, .7);
+  --background-image-holo: linear-gradient(135deg, #7C5CFF 0%, #2FE6FF 100%);
+}
+
+/* next/font registra as fontes com nomes próprios; aponta os tokens para elas. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --font-display: var(--font-unbounded), "Manrope", system-ui, sans-serif;
+  --font-body: var(--font-manrope), system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+:root[data-theme="light"] {
+  --background-image-holo: var(--gradient-holo);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--text-md);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
 }

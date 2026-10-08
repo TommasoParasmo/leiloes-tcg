@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Leilão TCG
 
-## Getting Started
+Plataforma de leilões ao vivo de cartas colecionáveis (Pokémon TCG, One Piece, Magic, Lorcana…).
+O site é a fonte oficial dos resultados; o grupo do WhatsApp recebe a publicação de cada arremate.
 
-First, run the development server:
+## Stack
+
+- Next.js (App Router) + React + TypeScript + Tailwind CSS v4 (tokens "Ultra Holo" em `src/app/tokens.css`)
+- Supabase: Postgres, Auth, Realtime e Storage
+- Regras críticas (lances, arremate, encerramento) em funções SQL atômicas: `supabase/migrations`
+- Testes: Vitest contra um Postgres real
+
+## Rodando localmente
 
 ```bash
+npm install
+cp .env.example .env.local   # preencha com as chaves do projeto Supabase
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Testes
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Os testes de banco precisam de um Postgres 16 em `localhost:54329` com usuário `postgres` sem senha
+(ou defina `TEST_DATABASE_URL_BASE`). Com Docker:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+docker run -d --name leiloes-pg -p 54329:5432 -e POSTGRES_HOST_AUTH_METHOD=trust postgres:16 -c max_connections=300
+npm test
+```
 
-## Learn More
+O setup cria um banco-modelo aplicando `supabase/tests/auth-shim.sql` (imita o `auth.uid()` do Supabase)
+e todas as migrações; cada arquivo de teste usa uma cópia isolada.
 
-To learn more about Next.js, take a look at the following resources:
+## Como o motor de leilão garante um único vencedor
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Toda ação sobre uma rodada trava a linha (`SELECT … FOR UPDATE`), então lances simultâneos são
+  processados um de cada vez, na ordem de chegada ao servidor (`bids.seq`).
+- O horário é sempre o do banco (`clock_timestamp()`); o relógio do navegador nunca decide nada.
+- `wins.round_id` é único: é impossível gravar dois arremates para a mesma rodada.
+- Cada toque carrega uma chave de idempotência; repetir a requisição devolve o mesmo resultado.
+- O encerramento grava o vencedor e apenas **enfileira** a mensagem do WhatsApp; o envio acontece fora
+  da transação e nunca atrasa o encerramento.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Detalhes e pendências em [STATUS.md](STATUS.md).

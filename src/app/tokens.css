@@ -1,0 +1,65 @@
+/* Leilões TCG — Ultra Holo design tokens
+   Dark is the default theme. Light is applied with [data-theme="light"] on <html>.
+   Fonts (Google Fonts): Unbounded 500/700/800 (display), Manrope 400–800 (body). */
+
+:root {
+  /* color — dark (default) */
+  --color-bg: #090A12;
+  --color-surface: #13141F;
+  --color-surface-2: #1E202F;
+  --color-line: #2B2D41;
+  --color-text: #EEF0FF;
+  --color-muted: #8A8EA8;
+  --color-accent: #7C5CFF;        /* primary actions, active tab, progress */
+  --color-accent-hover: #8F73FF;
+  --color-accent-text: #A08BFF;   /* accent used as text on bg */
+  --color-on-accent: #FFFFFF;
+  --color-holo: #2FE6FF;          /* second stop of the holo gradient, highlights */
+  --color-live: #FF5C8A;          /* "ao vivo", outbid alerts */
+  --color-win: #34D399;           /* winner, payment confirmed, sent */
+  --color-warn: #FBBF24;          /* yellow card, due soon, pending */
+  --color-danger: #FF6B6B;        /* errors, blocked, failed */
+  --gradient-holo: linear-gradient(135deg, #7C5CFF 0%, #2FE6FF 100%);
+
+  /* type */
+  --font-display: "Unbounded", "Manrope", system-ui, sans-serif;
+  --font-body: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --text-xs: 12px;  --text-sm: 13px; --text-md: 15px; --text-lg: 17px;
+  --text-xl: 20px;  --text-2xl: 24px; --text-3xl: 30px; --text-4xl: 40px;
+
+  /* spacing (4px grid) */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+
+  /* radius */
+  --radius-sm: 10px; --radius-md: 16px; --radius-lg: 22px; --radius-pill: 999px;
+
+  /* sizes */
+  --tap-min: 48px;       /* minimum touch target */
+  --btn-bid-h: 64px;     /* bid buttons in the auction room */
+  --btn-buy-h: 88px;     /* ARREMATAR button in speed mode */
+
+  --shadow-accent: 0 12px 34px -10px rgba(124, 92, 255, .7);
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --color-bg: #F5F6FB;
+  --color-surface: #FFFFFF;
+  --color-surface-2: #ECEEF7;
+  --color-line: #DCDFEC;
+  --color-text: #12142A;
+  --color-muted: #5B6080;
+  --color-accent: #6A48F5;
+  --color-accent-hover: #5A38E8;
+  --color-accent-text: #5B3BE6;
+  --color-on-accent: #FFFFFF;
+  --color-holo: #0FB5CC;
+  --color-live: #E0386A;
+  --color-win: #0E9F6E;
+  --color-warn: #D99A00;
+  --color-danger: #D93C3C;
+  --gradient-holo: linear-gradient(135deg, #6A48F5 0%, #0FB5CC 100%);
+  --shadow-accent: 0 12px 30px -12px rgba(106, 72, 245, .55);
+  color-scheme: light;
+}
