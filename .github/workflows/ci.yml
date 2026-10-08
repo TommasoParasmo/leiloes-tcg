@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 54329:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - name: npm test
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test -- --reporter=default --reporter=github-actions 2>&1 | tee test-output.txt || {
+            # repete as linhas de erro como anotações (os logs nem sempre são acessíveis)
+            grep -E "Error|FAIL|×|→|expected" test-output.txt | head -10 | sed 's/^/::error title=npm test::/'
+            exit 1
+          }
+      - run: npm run build
