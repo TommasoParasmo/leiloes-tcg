@@ -29,7 +29,7 @@ export interface AdminEvent {
  * ao vivo da sala; a fila é relida a cada mudança. Todo botão chama uma função admin_*
  * no banco, que confere permissão e estado antes de agir.
  */
-export function EventControl({ event, sellerId }: { event: AdminEvent; sellerId: string }) {
+export function EventControl({ event, sellerId, newCardId }: { event: AdminEvent; sellerId: string; newCardId?: string }) {
   const router = useRouter();
   const [sb] = useState(createClient);
   const room = useRoom(sb, event.id, { round: null, card: null });
@@ -42,6 +42,23 @@ export function EventControl({ event, sellerId }: { event: AdminEvent; sellerId:
   const [sheet, setSheet] = useState<"new" | QueueRound | null>(null);
   // confirmação antes de tirar uma carta da fila
   const [removing, setRemoving] = useState<QueueRound | null>(null);
+  // carta recém-cadastrada a partir deste evento: abre o painel já com ela escolhida
+  const [newCard, setNewCard] = useState<{ id: string; name: string } | null>(null);
+  // a tela pode voltar com o estado preservado (navegação do Next), então compara com a última tratada
+  const [handledNewCard, setHandledNewCard] = useState<string | null>(null);
+  if (newCardId && newCardId !== handledNewCard) {
+    const found = freeCards.find((c) => c.id === newCardId);
+    if (found) {
+      setHandledNewCard(newCardId);
+      setNewCard({ id: found.id, name: found.name });
+      setSheet("new");
+    }
+  }
+  useEffect(() => {
+    // tira o ?carta= da barra para um recarregar não reabrir o painel
+    // (sem ida ao servidor, que remontaria a tela e perderia o painel aberto)
+    if (newCardId) window.history.replaceState(null, "", `/painel/eventos/${event.id}`);
+  }, [newCardId, event.id]);
 
   const reload = useCallback(async () => {
     const [r, c] = await Promise.all([fetchEventRounds(sb, event.id), fetchFreeCards(sb, sellerId)]);
@@ -63,7 +80,7 @@ export function EventControl({ event, sellerId }: { event: AdminEvent; sellerId:
     return () => {
       alive = false;
     };
-  }, [sb, event.id, sellerId, roundKey]);
+  }, [sb, event.id, sellerId, roundKey, newCardId]);
 
   async function act(label: string, fn: () => Promise<AuctionResult>, after?: (r: AuctionResult) => void) {
     if (busy) return;
@@ -217,9 +234,14 @@ export function EventControl({ event, sellerId }: { event: AdminEvent; sellerId:
               ordinal={sheet === "new" ? rounds.length + 1 : rounds.findIndex((r) => r.id === sheet.id) + 1}
               cards={freeCards}
               editing={sheet === "new" ? undefined : sheet}
-              onClose={() => setSheet(null)}
+              initialCard={sheet === "new" ? (newCard ?? undefined) : undefined}
+              onClose={() => {
+                setSheet(null);
+                setNewCard(null);
+              }}
               onSaved={(text) => {
                 setSheet(null);
+                setNewCard(null);
                 void reload();
                 setMessage({ tone: "win", text });
               }}

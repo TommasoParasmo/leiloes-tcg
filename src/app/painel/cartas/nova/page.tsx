@@ -7,22 +7,34 @@ import { CardForm } from "./card-form";
 
 export const metadata: Metadata = { title: "Cadastrar carta · Bate Carta" };
 
-export default function NovaCartaPage() {
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export default function NovaCartaPage({ searchParams }: PageProps<"/painel/cartas/nova">) {
   return (
-    <>
-      <AppBar back="/painel/cartas" title="Cadastrar carta" />
-      <Suspense fallback={<PageLoading />}>
-        <Form />
-      </Suspense>
-    </>
+    <Suspense
+      fallback={
+        <>
+          <AppBar back="/painel/cartas" title="Cadastrar carta" />
+          <PageLoading />
+        </>
+      }
+    >
+      <Form searchParams={searchParams} />
+    </Suspense>
   );
 }
 
-async function Form() {
-  const { sellerId } = await requireAdmin("/painel/cartas/nova");
+async function Form({ searchParams }: Pick<PageProps<"/painel/cartas/nova">, "searchParams">) {
+  const { evento } = await searchParams;
+  // aberta pelo "Adicionar carta" de um evento: volta para ele com a carta escolhida
+  const eventId = typeof evento === "string" && UUID.test(evento) ? evento : undefined;
+  const { sellerId } = await requireAdmin(eventId ? `/painel/cartas/nova?evento=${eventId}` : "/painel/cartas/nova");
   return (
-    <main className="mx-auto w-full max-w-md px-4 pb-10 pt-2">
-      <CardForm sellerId={sellerId} />
-    </main>
+    <>
+      <AppBar back={eventId ? `/painel/eventos/${eventId}` : "/painel/cartas"} title="Cadastrar carta" />
+      <main className="mx-auto w-full max-w-md px-4 pb-10 pt-2">
+        <CardForm sellerId={sellerId} eventId={eventId} />
+      </main>
+    </>
   );
 }

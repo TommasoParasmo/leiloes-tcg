@@ -6,7 +6,8 @@ import { ChoiceChips } from "@/components/ui/chips";
 import { Field, FormError } from "@/components/ui/field";
 import { Select, TextArea } from "@/components/ui/select";
 import { CARD_PHOTOS_BUCKET } from "@/lib/auction/data";
-import { canOpenPhoto, shrinkPhoto } from "@/lib/image";
+import { canOpenPhoto, shrinkPhoto, withTimeout } from "@/lib/image";
+import { PokemonLookup } from "./pokemon-lookup";
 import { parseBRL } from "@/lib/money";
 import { createClient } from "@/lib/supabase/client";
 
@@ -50,7 +51,7 @@ const subscribeStorage = (cb: () => void) => {
   return () => window.removeEventListener("storage", cb);
 };
 
-export function CardForm({ sellerId }: { sellerId: string }) {
+export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: string }) {
   const router = useRouter();
   const key = draftKey(sellerId);
   // rascunho que já estava salvo quando a tela abriu (oferecido num aviso, não aplicado sozinho)
@@ -148,13 +149,14 @@ export function CardForm({ sellerId }: { sellerId: string }) {
     try {
       // fotos primeiro: se alguma falhar, a carta não fica cadastrada sem imagem
       for (const [i, p] of photos.entries()) {
-        const blob = await shrinkPhoto(p.file);
+        const blob = await withTimeout(shrinkPhoto(p.file), 30_000);
         const path = `${sellerId}/${cardId}/${i + 1}-${crypto.randomUUID().slice(0, 8)}.jpg`;
-        const { error } = await sb.storage.from(CARD_PHOTOS_BUCKET).upload(path, blob, { contentType: "image/jpeg", cacheControl: "31536000" });
+        // rede de celular pode travar sem erro: desiste e avisa em vez de girar para sempre
+        const { error } = await withTimeout(sb.storage.from(CARD_PHOTOS_BUCKET).upload(path, blob, { contentType: "image/jpeg", cacheControl: "31536000" }), 60_000);
         if (error) throw error;
         uploaded.push(path);
       }
-      const { error: cardError } = await sb.from("cards").insert({
+      const { error: cardError } = await withTimeout(sb.from("cards").insert({
         id: cardId,
         seller_id: sellerId,
         name: values.name.trim(),
@@ -166,7 +168,7 @@ export function CardForm({ sellerId }: { sellerId: string }) {
         condition: values.condition || null,
         liga_price_cents: liga,
         notes: values.notes.trim() || null,
-      });
+      }), 30_000);
       if (cardError) throw cardError;
       const { error: photoError } = await sb.from("card_photos").insert(uploaded.map((storage_path, position) => ({ card_id: cardId, storage_path, position })));
       if (photoError) {
@@ -181,7 +183,7 @@ export function CardForm({ sellerId }: { sellerId: string }) {
     }
     writeDraft(key, null);
     if (then === "leave") {
-      router.replace("/painel/cartas");
+      router.replace(eventId ? `/painel/eventos/${eventId}?carta=${cardId}` : "/painel/cartas");
       router.refresh();
       return;
     }
@@ -203,6 +205,13 @@ export function CardForm({ sellerId }: { sellerId: string }) {
       onSubmit={(e) => {
         e.preventDefault();
         void save("leave");
+      }}
+      onKeyDown={(e) => {
+        // "ir"/Enter do teclado do celular num campo de uma linha só fecha o teclado; salvar é pelos botões
+        if (e.key === "Enter" && e.target instanceof HTMLInputElement) {
+          e.preventDefault();
+          e.target.blur();
+        }
       }}
       className="flex flex-col gap-3"
       noValidate
@@ -325,6 +334,17 @@ export function CardForm({ sellerId }: { sellerId: string }) {
       <div ref={nameInput}>
         <Field label="Nome da carta" name="card-name" value={values.name} onChange={set("name")} error={errors.name} maxLength={120} autoComplete="off" />
       </div>
+      {values.tcg === "Pokémon" && (
+        <PokemonLookup
+          query={values.name}
+          language={values.language}
+          onPick={(c) => {
+            update("name", c.name);
+            if (c.collection) update("collection", c.collection);
+            if (c.cardNumber) update("cardNumber", c.cardNumber);
+          }}
+        />
+      )}
       <Select label="Jogo" value={values.tcg} onChange={set("tcg")} options={TCGS} />
       <div className="grid grid-cols-[1fr_120px] gap-2">
         <Field label="Coleção" value={values.collection} onChange={set("collection")} autoComplete="off" />
@@ -343,7 +363,7 @@ export function CardForm({ sellerId }: { sellerId: string }) {
           Salvar e nova
         </Button>
         <Button type="submit" className="min-h-[52px]" pending={pending === "leave"} disabled={!!pending}>
-          Salvar carta
+          {eventId ? "Salvar e pôr no leilão" : "Salvar carta"}
         </Button>
       </div>
     </form>
