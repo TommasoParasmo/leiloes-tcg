@@ -6,7 +6,7 @@ import { ChoiceChips } from "@/components/ui/chips";
 import { Field, FormError } from "@/components/ui/field";
 import { Select, TextArea } from "@/components/ui/select";
 import { CARD_PHOTOS_BUCKET } from "@/lib/auction/data";
-import { shrinkPhoto } from "@/lib/image";
+import { canOpenPhoto, shrinkPhoto } from "@/lib/image";
 import { parseBRL } from "@/lib/money";
 import { createClient } from "@/lib/supabase/client";
 
@@ -64,6 +64,7 @@ export function CardForm({ sellerId }: { sellerId: string }) {
   const [saved, setSaved] = useState<string | null>(null);
   const [pending, setPending] = useState<"stay" | "leave" | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const cameraInput = useRef<HTMLInputElement>(null);
   const nameInput = useRef<HTMLDivElement>(null);
 
   // libera as prévias quando a tela fecha
@@ -94,14 +95,25 @@ export function CardForm({ sellerId }: { sellerId: string }) {
   }
   const set = (k: keyof Values) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => update(k, e.target.value);
 
-  function addPhotos(list: FileList | null) {
+  async function addPhotos(list: FileList | null) {
     if (!list) return;
-    const room = MAX_PHOTOS - photos.length;
-    const picked = [...list].filter((f) => f.type.startsWith("image/")).slice(0, room);
-    setPhotos((p) => [...p, ...picked.map((file) => ({ file, url: URL.createObjectURL(file) }))]);
-    setErrors((s) => ({ ...s, photos: undefined }));
-    setSaved(null);
+    const files = [...list];
     if (fileInput.current) fileInput.current.value = "";
+    if (cameraInput.current) cameraInput.current.value = "";
+    const room = MAX_PHOTOS - photos.length;
+    const images = files.filter((f) => f.type.startsWith("image/"));
+    const candidates = images.slice(0, room);
+    // confere já na escolha se o aparelho abre a foto (HEIC, por exemplo, não abre em todo navegador)
+    const readable = (await Promise.all(candidates.map(async (f) => ((await canOpenPhoto(f)) ? f : null)))).filter((f): f is File => f !== null);
+    setPhotos((p) => [...p, ...readable.map((file) => ({ file, url: URL.createObjectURL(file) }))].slice(0, MAX_PHOTOS));
+    const unreadable = candidates.length - readable.length + (files.length - images.length);
+    const extra = images.length - candidates.length;
+    const notes = [
+      unreadable > 0 && (unreadable === 1 ? "Uma foto não abriu neste aparelho. Use JPG ou PNG, ou tire pela câmera." : `${unreadable} fotos não abriram neste aparelho. Use JPG ou PNG, ou tire pela câmera.`),
+      extra > 0 && `Cabem só ${MAX_PHOTOS} fotos: ${extra === 1 ? "uma ficou de fora" : `${extra} ficaram de fora`}.`,
+    ].filter(Boolean);
+    setErrors((s) => ({ ...s, photos: notes.length ? notes.join(" ") : undefined }));
+    setSaved(null);
   }
 
   function removePhoto(i: number) {
@@ -259,12 +271,33 @@ export function CardForm({ sellerId }: { sellerId: string }) {
             </div>
           ))}
           {photos.length < MAX_PHOTOS && (
+            // celular: abre direto a câmera traseira (no computador o atributo capture é ignorado, por isso o botão só aparece em tela de toque)
+            <label className="hidden aspect-[63/88] cursor-pointer place-items-center rounded-sm border-2 border-accent/60 bg-accent/10 text-center text-xs font-bold text-accent-text pointer-coarse:grid has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent">
+              <span>
+                <svg aria-hidden viewBox="0 0 24 24" className="mx-auto mb-1 size-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
+                  <circle cx="12" cy="13.5" r="3.5" />
+                </svg>
+                Câmera
+              </span>
+              <input
+                ref={cameraInput}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="sr-only"
+                onChange={(e) => void addPhotos(e.target.files)}
+                aria-describedby={errors.photos ? "fotos-erro" : "fotos-dica"}
+              />
+            </label>
+          )}
+          {photos.length < MAX_PHOTOS && (
             <label className="grid aspect-[63/88] cursor-pointer place-items-center rounded-sm border-2 border-dashed border-line text-center text-xs font-bold text-muted has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent">
               <span>
                 <span aria-hidden className="block text-2xl">
                   +
                 </span>
-                Foto
+                Galeria
               </span>
               <input
                 ref={fileInput}
@@ -272,7 +305,7 @@ export function CardForm({ sellerId }: { sellerId: string }) {
                 accept="image/*"
                 multiple
                 className="sr-only"
-                onChange={(e) => addPhotos(e.target.files)}
+                onChange={(e) => void addPhotos(e.target.files)}
                 aria-describedby={errors.photos ? "fotos-erro" : "fotos-dica"}
               />
             </label>
@@ -284,7 +317,7 @@ export function CardForm({ sellerId }: { sellerId: string }) {
           </p>
         ) : (
           <p id="fotos-dica" className="text-xs text-muted">
-            Frente, verso e detalhes. Toque numa foto para virar a capa.
+            Tire pela câmera ou escolha da galeria: frente, verso e detalhes. Toque numa foto para virar a capa.
           </p>
         )}
       </section>

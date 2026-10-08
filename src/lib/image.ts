@@ -3,7 +3,8 @@
  * Lado maior até 1600 px, JPEG 85%. Fica nítido para a foto ampliada e leve para a sala.
  */
 export async function shrinkPhoto(file: File, maxSide = 1600): Promise<Blob> {
-  const bitmap = await createImageBitmap(file);
+  // respeita a rotação gravada pela câmera do celular (EXIF)
+  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
   const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
   const w = Math.round(bitmap.width * scale);
   const h = Math.round(bitmap.height * scale);
@@ -15,4 +16,15 @@ export async function shrinkPhoto(file: File, maxSide = 1600): Promise<Blob> {
   return new Promise((resolve, reject) =>
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Não foi possível processar a foto"))), "image/jpeg", 0.85),
   );
+}
+
+/** Confere se o navegador consegue abrir a foto (evita descobrir só na hora de salvar). */
+export async function canOpenPhoto(file: File): Promise<boolean> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    bitmap.close();
+    return true;
+  } catch {
+    return false;
+  }
 }
