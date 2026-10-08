@@ -84,7 +84,10 @@ export function nextClockSync(prev: ClockSync | null, serverNowIso: string, sent
  */
 export function mergePublicState(prev: RoundState, pub: RoundState): RoundState {
   const me = prev.my_nickname;
-  const leadingIsMe = me != null && pub.leading_nickname === me;
+  // mesmo líder e mesmo valor (ex.: só o cronômetro mudou): mantém o que o servidor já disse,
+  // mesmo que o líder tenha trocado de apelido depois de assumir a liderança
+  const sameLead = pub.id === prev.id && pub.current_amount_cents === prev.current_amount_cents && pub.leading_nickname === prev.leading_nickname;
+  const leadingIsMe = sameLead ? prev.leading_is_me : me != null && pub.leading_nickname === me;
   return {
     ...pub,
     my_nickname: me,
@@ -144,4 +147,12 @@ export function formatServerTime(iso: string, withMs = false): string {
 /** Chave de idempotência por toque (reenvio após reconexão usa a mesma chave). */
 export function newIdempotencyKey(): string {
   return crypto.randomUUID();
+}
+
+const EVENT_STATUS_RANK: Record<string, number> = { draft: 0, scheduled: 1, live: 2, finished: 3, cancelled: 3 };
+
+/** O status do evento só avança: uma leitura antiga (ainda "ao vivo") não desfaz o "encerrado" que chegou pelo canal. */
+export function nextEventStatus<T extends string>(prev: T | null, next: T): T {
+  if (prev == null) return next;
+  return (EVENT_STATUS_RANK[next] ?? 0) >= (EVENT_STATUS_RANK[prev] ?? 0) ? next : prev;
 }

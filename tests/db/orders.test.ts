@@ -196,6 +196,14 @@ describe("cartão amarelo e bloqueio", () => {
 });
 
 describe("painel: lote, envio e WhatsApp", () => {
+  it("leiloeiro não fecha lote de quem não tem endereço", async () => {
+    const [buyer] = await db.users(1);
+    await auction(buyer, 1000);
+    const lot = await lotOf(buyer);
+    expect((await db.rpc(admin, "admin_close_lot", [lot.id])).code).toBe("address_required");
+    expect((await lotOf(buyer)).status).toBe("open");
+  });
+
   it("leiloeiro fecha o lote do comprador, registra envio e entrega", async () => {
     const buyer = await buyerWithAddress();
     await auction(buyer, 1000);

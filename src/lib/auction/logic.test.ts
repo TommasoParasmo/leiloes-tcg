@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bidBoxTone, bidChoices, clockOffsetMs, formatCountdown, mergePublicState, nextClockSync, remainingMs, timerProgress } from "./logic";
+import { bidBoxTone, bidChoices, clockOffsetMs, formatCountdown, mergePublicState, nextClockSync, nextEventStatus, remainingMs, timerProgress } from "./logic";
 import type { RoundState } from "./types";
 
 const base: RoundState = {
@@ -136,5 +136,21 @@ describe("mergePublicState", () => {
   it("visitante nunca lidera", () => {
     const pub = { ...base, leading_nickname: "Lia", current_amount_cents: 600 };
     expect(mergePublicState({ ...base, my_block: "not_authenticated" }, pub).leading_is_me).toBe(false);
+  });
+  it("líder que trocou de apelido continua líder enquanto o lance não muda", () => {
+    // a leitura pessoal já traz o apelido novo; o público ainda mostra o antigo
+    const renamed = { ...mine, my_nickname: "Lia2" };
+    const pub: RoundState = { ...base, rev: 9, current_amount_cents: 600, leading_nickname: "Lia", recent_bids: [] };
+    expect(mergePublicState(renamed, pub).leading_is_me).toBe(true);
+    expect(mergePublicState(renamed, { ...pub, current_amount_cents: 700, leading_nickname: "Rafa" }).leading_is_me).toBe(false);
+  });
+});
+
+describe("nextEventStatus", () => {
+  it("não volta de encerrado para ao vivo", () => {
+    expect(nextEventStatus("finished", "live")).toBe("finished");
+    expect(nextEventStatus("live", "finished")).toBe("finished");
+    expect(nextEventStatus(null, "live")).toBe("live");
+    expect(nextEventStatus("scheduled", "live")).toBe("live");
   });
 });

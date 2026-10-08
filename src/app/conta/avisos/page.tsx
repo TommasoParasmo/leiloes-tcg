@@ -40,12 +40,12 @@ async function Avisos() {
   if (!auth.user) redirect("/entrar?next=/conta/avisos");
   const { data } = await sb.from("notifications").select("id, kind, title, body, data, read_at, created_at").order("created_at", { ascending: false }).limit(100);
   const notices = (data ?? []) as Notice[];
-  const unread = notices.some((n) => !n.read_at);
+  const unreadIds = notices.filter((n) => !n.read_at).map((n) => n.id);
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 pb-28">
       <h1 className="font-display text-xl font-bold">Avisos</h1>
-      {unread && <MarkRead />}
+      {unreadIds.length > 0 && <MarkRead ids={unreadIds} />}
       {notices.length === 0 ? (
         <p className="rounded-md border border-line bg-surface p-5 text-center text-sm text-muted">Nenhum aviso ainda. Lances superados, arremates, Pix e envio aparecem aqui.</p>
       ) : (

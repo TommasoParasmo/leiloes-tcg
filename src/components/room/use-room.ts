@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchCard, fetchRoomState } from "@/lib/auction/data";
-import { clockOffsetMs, mergePublicState, nextClockSync, type ClockSync } from "@/lib/auction/logic";
+import { clockOffsetMs, mergePublicState, nextClockSync, nextEventStatus, type ClockSync } from "@/lib/auction/logic";
 import type { CardInfo, EventInfo, RoundState } from "@/lib/auction/types";
 
 /** Sem o tempo real, a sala relê o servidor neste intervalo. */
@@ -64,7 +64,7 @@ export function useRoom(
     latestServerNow.current = Math.max(latestServerNow.current, Date.parse(s.server_now));
     roundRef.current = s;
     setRound(s);
-    if (s.event_status) setEventStatus(s.event_status);
+    if (s.event_status) setEventStatus((prev) => nextEventStatus(prev, s.event_status));
   }, []);
 
   const applyState = useCallback(
@@ -96,7 +96,7 @@ export function useRoom(
     const res = await fetchRoomState(sb, eventId);
     lastRead.current = Date.now();
     if (!res) return;
-    setEventStatus(res.event_status);
+    setEventStatus((prev) => nextEventStatus(prev, res.event_status));
     const s = res.state;
     if (!s) return;
     if (!(await ensureCard(s))) return;
@@ -118,7 +118,7 @@ export function useRoom(
         }
       })
       .on("broadcast", { event: "event" }, ({ payload }) => {
-        setEventStatus((payload as { event_status: EventInfo["status"] }).event_status);
+        setEventStatus((prev) => nextEventStatus(prev, (payload as { event_status: EventInfo["status"] }).event_status));
       })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
