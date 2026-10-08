@@ -24,7 +24,7 @@ Os testes de banco precisam de um Postgres 16 em `localhost:54329` com usuário 
 (ou defina `TEST_DATABASE_URL_BASE`). Com Docker:
 
 ```bash
-docker run -d --name leiloes-pg -p 54329:5432 -e POSTGRES_HOST_AUTH_METHOD=trust postgres:16 -c max_connections=300
+docker run -d --name leiloes-pg -p 54329:5432 -e POSTGRES_HOST_AUTH_METHOD=trust postgres:16
 npm test
 ```
 

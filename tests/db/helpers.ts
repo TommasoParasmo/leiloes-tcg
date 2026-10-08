@@ -14,7 +14,7 @@ export class TestDb {
     await admin.connect();
     await admin.query(`create database ${name} template ${TEMPLATE_DB}`);
     await admin.end();
-    const pool = new Pool({ connectionString: adminUrl(name), max: 250 });
+    const pool = new Pool({ connectionString: adminUrl(name), max: 80 });
     return new TestDb(name, pool);
   }
 
