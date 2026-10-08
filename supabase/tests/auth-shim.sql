@@ -38,3 +38,8 @@ create or replace function realtime.send(payload jsonb, event text, topic text, 
 returns void
 language sql
 as $$ insert into realtime.sent (topic, event, payload, private) values (topic, event, payload, private); $$;
+
+-- Colunas do auth.users que a exclusão de conta usa; sessões do Auth.
+alter table auth.users add column if not exists banned_until timestamptz;
+alter table auth.users add column if not exists encrypted_password text;
+create table if not exists auth.sessions (id uuid primary key default gen_random_uuid(), user_id uuid);

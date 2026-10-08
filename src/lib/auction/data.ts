@@ -60,14 +60,21 @@ export async function fetchRoomState(sb: SupabaseClient, eventId: string): Promi
 
 export async function placeBid(sb: SupabaseClient, roundId: string, amountCents: number, key: string): Promise<AuctionResult> {
   const { data, error } = await sb.rpc("place_bid", { p_round_id: roundId, p_amount_cents: amountCents, p_idempotency_key: key });
+  if (isRateLimited(error)) return { ok: false, code: "rate_limited" };
   if (error) throw error;
   return data as AuctionResult;
 }
 
 export async function buyNow(sb: SupabaseClient, roundId: string, key: string): Promise<AuctionResult> {
   const { data, error } = await sb.rpc("buy_now", { p_round_id: roundId, p_idempotency_key: key });
+  if (isRateLimited(error)) return { ok: false, code: "rate_limited" };
   if (error) throw error;
   return data as AuctionResult;
+}
+
+/** O banco recusa (429) quem dispara requisições demais (limite antes da função rodar). */
+export function isRateLimited(error: { code?: string } | null): boolean {
+  return error?.code === "rate_limited";
 }
 
 /** Repete a chamada uma vez em falha de rede, com a MESMA chave (o servidor não duplica). */

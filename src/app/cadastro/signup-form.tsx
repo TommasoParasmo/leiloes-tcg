@@ -1,9 +1,11 @@
 "use client";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, FormError } from "@/components/ui/field";
 import { authMessage } from "@/lib/auth-errors";
+import { TERMS_VERSION } from "@/lib/legal";
 import { publicEnv } from "@/lib/env";
 import { createClient } from "@/lib/supabase/client";
 import * as v from "@/lib/validation";
@@ -63,6 +65,8 @@ export function SignupForm({ next = "/" }: { next?: string }) {
   const [formError, setFormError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
+  const [accepted, setAccepted] = useState(false);
+  const [termsError, setTermsError] = useState<string | null>(null);
 
   const set = (k: keyof Values) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setValues((s) => ({ ...s, [k]: e.target.value }));
@@ -88,7 +92,9 @@ export function SignupForm({ next = "/" }: { next?: string }) {
     e.preventDefault();
     const errs = validate(values);
     setErrors(errs);
-    if (Object.values(errs).some(Boolean)) {
+    const termsErr = accepted ? null : "Para criar a conta, aceite os termos e a política de privacidade.";
+    setTermsError(termsErr);
+    if (Object.values(errs).some(Boolean) || termsErr) {
       setFormError("Confira os campos destacados.");
       focusFirstInvalid(e.currentTarget as HTMLFormElement);
       return;
@@ -98,10 +104,14 @@ export function SignupForm({ next = "/" }: { next?: string }) {
     const sb = createClient();
 
     const form = e.currentTarget as HTMLFormElement;
-    const [{ data: nickFree }, { data: phoneFree }] = await Promise.all([
+    const [{ data: nickFree, error: nickErr }, { data: phoneFree, error: phoneErr }] = await Promise.all([
       sb.rpc("nickname_available", { p_nickname: values.nickname.trim() }),
       sb.rpc("whatsapp_available", { p_whatsapp: v.onlyDigits(values.whatsapp) }),
     ]);
+    if (nickErr?.code === "rate_limited" || phoneErr?.code === "rate_limited") {
+      setPending(false);
+      return setFormError("Muitas tentativas seguidas. Espere um minuto e tente de novo.");
+    }
     if (nickFree === false || phoneFree === false) {
       setPending(false);
       setErrors((s) => ({
@@ -133,6 +143,7 @@ export function SignupForm({ next = "/" }: { next?: string }) {
             city: values.city.trim(),
             state: values.state.trim().toUpperCase(),
           },
+          terms_version: TERMS_VERSION,
         },
       },
     });
@@ -228,6 +239,38 @@ export function SignupForm({ next = "/" }: { next?: string }) {
         error={errors.password}
         hint="Pelo menos 8 caracteres, com letras e números."
       />
+      <div>
+        <label className="flex min-h-12 items-start gap-3 py-1 text-sm">
+          <input
+            type="checkbox"
+            name="terms"
+            checked={accepted}
+            onChange={(e) => {
+              setAccepted(e.target.checked);
+              setTermsError(null);
+            }}
+            aria-invalid={termsError ? true : undefined}
+            aria-describedby={termsError ? "terms-error" : undefined}
+            className="mt-0.5 size-5 shrink-0 accent-accent"
+          />
+          <span>
+            Li e aceito os{" "}
+            <Link href="/termos" target="_blank" className="font-bold text-accent-text underline">
+              termos de uso
+            </Link>{" "}
+            e a{" "}
+            <Link href="/privacidade" target="_blank" className="font-bold text-accent-text underline">
+              política de privacidade
+            </Link>
+            .
+          </span>
+        </label>
+        {termsError && (
+          <p id="terms-error" className="text-xs font-semibold text-danger">
+            {termsError}
+          </p>
+        )}
+      </div>
       <FormError message={formError} />
       <Button type="submit" block pending={pending}>
         Criar conta
