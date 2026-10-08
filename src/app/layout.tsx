@@ -21,8 +21,9 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: "Bate Carta", statusBarStyle: "black-translucent" },
 };
 
-// Tema do sistema antes da primeira pintura (sem piscar): escuro é o padrão.
-const themeScript = `(()=>{try{var m=matchMedia("(prefers-color-scheme: light)");var s=function(){document.documentElement.dataset.theme=m.matches?"light":"dark"};s();m.addEventListener("change",s)}catch(e){}})()`;
+// Tema antes da primeira pintura (sem piscar): a escolha salva pelo botão vale; sem ela, segue o
+// sistema (escuro é o padrão).
+const themeScript = `(()=>{try{var m=matchMedia("(prefers-color-scheme: light)");var s=function(){var t=null;try{t=localStorage.getItem("theme")}catch(e){}document.documentElement.dataset.theme=t==="light"||t==="dark"?t:m.matches?"light":"dark"};s();m.addEventListener("change",s)}catch(e){}})()`;
 
 export const viewport: Viewport = {
   width: "device-width",

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Logo } from "./logo";
+import { ThemeToggle } from "./theme-toggle";
 
 /** Barra do topo: logo (ou "‹ Título" em telas internas) e um elemento à direita. */
 export function AppBar({ back, title, right }: { back?: string; title?: string; right?: ReactNode }) {
@@ -13,7 +14,10 @@ export function AppBar({ back, title, right }: { back?: string; title?: string; 
       ) : (
         <Logo />
       )}
-      {right}
+      <div className="flex items-center gap-1">
+        <ThemeToggle />
+        {right}
+      </div>
     </header>
   );
 }

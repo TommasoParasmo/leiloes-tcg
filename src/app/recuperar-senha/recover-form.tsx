@@ -3,7 +3,6 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, FormError } from "@/components/ui/field";
 import { authMessage } from "@/lib/auth-errors";
-import { publicEnv } from "@/lib/env";
 import { createClient } from "@/lib/supabase/client";
 import { validateEmail } from "@/lib/validation";
 
@@ -20,7 +19,7 @@ export function RecoverForm() {
     setPending(true);
     setError(null);
     const { error } = await createClient().auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${publicEnv.siteUrl}/auth/callback?next=${encodeURIComponent("/nova-senha")}`,
+      redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/nova-senha")}`,
     });
     setPending(false);
     if (error) return setError(authMessage(error));
