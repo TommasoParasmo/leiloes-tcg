@@ -3,7 +3,8 @@
  * Lado maior até 1600 px, JPEG 85%. Fica nítido para a foto ampliada e leve para a sala.
  */
 export async function shrinkPhoto(file: File, maxSide = 1600): Promise<Blob> {
-  const bitmap = await createImageBitmap(file);
+  // respeita a rotação gravada pela câmera do celular (EXIF)
+  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
   const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
   const w = Math.round(bitmap.width * scale);
   const h = Math.round(bitmap.height * scale);
