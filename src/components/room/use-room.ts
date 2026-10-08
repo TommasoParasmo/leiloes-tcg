@@ -90,6 +90,9 @@ export function useRoom(sb: SupabaseClient, eventId: string, initial: { round: R
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("online", onVisible);
 
+    // primeira leitura já na montagem (o painel começa sem estado do servidor)
+    if (!roundIdRef.current) void refresh().catch(() => setReconnecting(true));
+
     const poll = setInterval(() => {
       if (document.visibilityState === "visible") void refresh().catch(() => setReconnecting(true));
     }, SAFETY_POLL_MS);
@@ -114,4 +117,26 @@ export function useTicker(active: boolean): number {
     return () => clearInterval(id);
   }, [active]);
   return now;
+}
+
+/**
+ * Quando o cronômetro zera, pede ao servidor para fechar a rodada (uma vez por rodada).
+ * O servidor só fecha se o relógio dele confirmar; o agendador do banco é a reserva.
+ */
+export function useCloseWhenExpired(sb: SupabaseClient, round: RoundState | null, remaining: number | null, applyState: (s: RoundState) => void) {
+  const asked = useRef<string | null>(null);
+  const expired = round?.status === "open" && round.close_mode === "timer" && remaining === 0;
+  const roundId = round?.id;
+  useEffect(() => {
+    if (!expired || !roundId || asked.current === roundId) return;
+    asked.current = roundId;
+    // pequena folga para o relógio do aparelho não chegar antes do servidor
+    const t = setTimeout(async () => {
+      const { data } = await sb.rpc("close_round_if_expired", { p_round_id: roundId });
+      const state = (data as { state?: RoundState } | null)?.state;
+      if (state) applyState(state);
+      else asked.current = null;
+    }, 300);
+    return () => clearTimeout(t);
+  }, [expired, roundId, sb, applyState]);
 }

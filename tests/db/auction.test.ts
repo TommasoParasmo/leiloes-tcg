@@ -265,16 +265,16 @@ describe("Permissões e participação", () => {
     const foreignCard = await db.card(seller);
     const ownEvent = await db.event(other, 1);
     const ownCard = await db.card(other);
-    const insert = (eventId: string, cardId: string) =>
+    const add = (eventId: string, cardId: string) => db.rpc(otherAdmin, "admin_add_round", [eventId, cardId, "speed", null, null, null, 500, "manual", null]);
+    expect((await add(foreignEvent, ownCard)).code).toBe("forbidden");
+    expect((await add(ownEvent, foreignCard)).code).toBe("card_not_found");
+    expect((await add(ownEvent, ownCard)).code).toBe("created");
+    // inserir direto pela API não é mais permitido
+    await expect(
       db.as(otherAdmin, (c) =>
-        c.query(
-          `insert into rounds (seller_id, event_id, card_id, position, mode, fixed_price_cents) values ($1, $2, $3, 1, 'speed', 500)`,
-          [other, eventId, cardId],
-        ),
-      );
-    await expect(insert(foreignEvent, ownCard)).rejects.toThrow(/foreign key/);
-    await expect(insert(ownEvent, foreignCard)).rejects.toThrow(/foreign key/);
-    await expect(insert(ownEvent, ownCard)).resolves.toBeTruthy();
+        c.query(`insert into rounds (seller_id, event_id, card_id, position, mode, fixed_price_cents) values ($1, $2, $3, 2, 'speed', 500)`, [other, ownEvent, ownCard]),
+      ),
+    ).rejects.toThrow(/permission denied/);
   });
 
   it("admin só vê dados pessoais de compradores da própria loja", async () => {

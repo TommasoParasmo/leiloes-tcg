@@ -16,7 +16,7 @@ import { CardArt } from "./card-art";
 import { CardTitle } from "./card-title";
 import { BlockedNotice, ReconnectBanner, RoomToast } from "./notices";
 import { LostCard, WinnerCard, WonNextSteps } from "./result-cards";
-import { useRoom, useTicker } from "./use-room";
+import { useCloseWhenExpired, useRoom, useTicker } from "./use-room";
 
 type Toast = { tone: "live" | "danger" | "neutral"; text: string; detail?: string } | null;
 
@@ -28,6 +28,7 @@ export function LiveRoom({ event, initialRound, initialCard }: { event: EventInf
   const hasTimer = round?.status === "open" && !!round.ends_at;
   const now = useTicker(hasTimer);
   const remaining = round ? remainingMs(round, now, room.offsetMs) : null;
+  useCloseWhenExpired(sb, round, remaining, room.applyState);
 
   const [pendingRaw, setPending] = useState<{ amount: number | null; roundId: string } | null>(null);
   // Ao trocar de rodada, nada pendente da anterior continua valendo.

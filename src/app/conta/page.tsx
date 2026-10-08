@@ -101,6 +101,11 @@ async function Conta() {
         </section>
 
         <div className="flex flex-col gap-2">
+          {profile?.role === "admin" && (
+            <Link href="/painel" className="flex min-h-12 items-center justify-center rounded-md bg-accent font-bold text-on-accent">
+              Painel do leiloeiro
+            </Link>
+          )}
           <Link href="/nova-senha" className="flex min-h-12 items-center justify-center rounded-md bg-surface-2 font-bold">
             Trocar senha
           </Link>

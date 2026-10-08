@@ -19,3 +19,12 @@ export function parseBRL(input: string): number | null {
   if (!/^\d+(\.\d{1,2})?$/.test(clean)) return null;
   return Math.round(Number(clean) * 100);
 }
+
+/** "1 2 5" ou "6; 7,50; 8" → centavos em ordem crescente, sem repetidos. null se algum for inválido. */
+export function parseBRLList(input: string): number[] | null {
+  const parts = input.split(/[\s;/]+/).filter(Boolean);
+  if (!parts.length) return null;
+  const cents = parts.map(parseBRL);
+  if (cents.some((c) => c == null || c <= 0)) return null;
+  return [...new Set(cents as number[])].sort((a, b) => a - b);
+}
