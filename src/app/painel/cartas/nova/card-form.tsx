@@ -6,7 +6,7 @@ import { ChoiceChips } from "@/components/ui/chips";
 import { Field, FormError } from "@/components/ui/field";
 import { Select, TextArea } from "@/components/ui/select";
 import { CARD_PHOTOS_BUCKET } from "@/lib/auction/data";
-import { shrinkPhoto } from "@/lib/image";
+import { canOpenPhoto, shrinkPhoto } from "@/lib/image";
 import { parseBRL } from "@/lib/money";
 import { createClient } from "@/lib/supabase/client";
 
@@ -95,15 +95,25 @@ export function CardForm({ sellerId }: { sellerId: string }) {
   }
   const set = (k: keyof Values) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => update(k, e.target.value);
 
-  function addPhotos(list: FileList | null) {
+  async function addPhotos(list: FileList | null) {
     if (!list) return;
-    const room = MAX_PHOTOS - photos.length;
-    const picked = [...list].filter((f) => f.type.startsWith("image/")).slice(0, room);
-    setPhotos((p) => [...p, ...picked.map((file) => ({ file, url: URL.createObjectURL(file) }))]);
-    setErrors((s) => ({ ...s, photos: undefined }));
-    setSaved(null);
+    const files = [...list];
     if (fileInput.current) fileInput.current.value = "";
     if (cameraInput.current) cameraInput.current.value = "";
+    const room = MAX_PHOTOS - photos.length;
+    const images = files.filter((f) => f.type.startsWith("image/"));
+    const candidates = images.slice(0, room);
+    // confere já na escolha se o aparelho abre a foto (HEIC, por exemplo, não abre em todo navegador)
+    const readable = (await Promise.all(candidates.map(async (f) => ((await canOpenPhoto(f)) ? f : null)))).filter((f): f is File => f !== null);
+    setPhotos((p) => [...p, ...readable.map((file) => ({ file, url: URL.createObjectURL(file) }))].slice(0, MAX_PHOTOS));
+    const unreadable = candidates.length - readable.length + (files.length - images.length);
+    const extra = images.length - candidates.length;
+    const notes = [
+      unreadable > 0 && (unreadable === 1 ? "Uma foto não abriu neste aparelho. Use JPG ou PNG, ou tire pela câmera." : `${unreadable} fotos não abriram neste aparelho. Use JPG ou PNG, ou tire pela câmera.`),
+      extra > 0 && `Cabem só ${MAX_PHOTOS} fotos: ${extra === 1 ? "uma ficou de fora" : `${extra} ficaram de fora`}.`,
+    ].filter(Boolean);
+    setErrors((s) => ({ ...s, photos: notes.length ? notes.join(" ") : undefined }));
+    setSaved(null);
   }
 
   function removePhoto(i: number) {
@@ -276,7 +286,7 @@ export function CardForm({ sellerId }: { sellerId: string }) {
                 accept="image/*"
                 capture="environment"
                 className="sr-only"
-                onChange={(e) => addPhotos(e.target.files)}
+                onChange={(e) => void addPhotos(e.target.files)}
                 aria-describedby={errors.photos ? "fotos-erro" : "fotos-dica"}
               />
             </label>
@@ -295,7 +305,7 @@ export function CardForm({ sellerId }: { sellerId: string }) {
                 accept="image/*"
                 multiple
                 className="sr-only"
-                onChange={(e) => addPhotos(e.target.files)}
+                onChange={(e) => void addPhotos(e.target.files)}
                 aria-describedby={errors.photos ? "fotos-erro" : "fotos-dica"}
               />
             </label>

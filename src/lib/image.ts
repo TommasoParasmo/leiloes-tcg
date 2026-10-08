@@ -17,3 +17,14 @@ export async function shrinkPhoto(file: File, maxSide = 1600): Promise<Blob> {
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Não foi possível processar a foto"))), "image/jpeg", 0.85),
   );
 }
+
+/** Confere se o navegador consegue abrir a foto (evita descobrir só na hora de salvar). */
+export async function canOpenPhoto(file: File): Promise<boolean> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    bitmap.close();
+    return true;
+  } catch {
+    return false;
+  }
+}
