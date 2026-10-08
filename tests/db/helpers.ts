@@ -84,7 +84,7 @@ export class TestDb {
   }
 
   async users(n: number) {
-    return Promise.all(Array.from({ length: n }, (_, i) => this.user({ nickname: `comprador${i}_${randomUUID().slice(0, 4)}` })));
+    return Promise.all(Array.from({ length: n }, (_, i) => this.user({ nickname: `c${i}_${randomUUID().replace(/-/g, "").slice(0, 12)}` })));
   }
 
   async event(sellerId: string, number: number, status = "scheduled") {
