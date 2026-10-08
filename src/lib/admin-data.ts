@@ -81,6 +81,8 @@ export function roundSummary(r: Pick<QueueRound, "mode" | "increments_cents" | "
   const brl = (c: number) => (c % 100 === 0 ? String(c / 100) : (c / 100).toFixed(2).replace(".", ","));
   if (r.mode === "speed") return `Rapidez · R$ ${brl(r.fixed_price_cents ?? 0)}`;
   const close = r.close_mode === "timer" ? `${r.duration_seconds} s` : "manual";
+  if (r.bid_options_cents?.length && r.fixed_price_cents != null)
+    return `Rapidez · R$ ${r.bid_options_cents.map(brl).join("/")} · arremata em R$ ${brl(r.fixed_price_cents)} · ${close}`;
   if (r.bid_options_cents?.length) return `Opções R$ ${r.bid_options_cents.map(brl).join("/")} · ${close}`;
   return `Maior lance · R$ ${brl(r.start_price_cents ?? 0)} · +${(r.increments_cents ?? []).map(brl).join("/+")} · ${close}`;
 }

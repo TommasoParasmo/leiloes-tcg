@@ -125,7 +125,13 @@ export function LiveRoom({ event, initialRound, initialCard }: { event: EventInf
     <Shell event={event} round={round} eventOver={eventOver} reconnecting={room.reconnecting} announce={announce}>
       {toast && <RoomToast {...toast} />}
       <CardArt photos={card.photos} label={label} alt={card.name} />
-      <CardTitle card={card} extra={round.mode === "speed" && round.fixed_price_cents != null ? `Preço fixo ${formatBRL(round.fixed_price_cents)}` : undefined} />
+      <CardTitle card={card} extra={
+          round.fixed_price_cents == null
+            ? undefined
+            : round.mode === "speed"
+              ? `Preço fixo ${formatBRL(round.fixed_price_cents)}`
+              : `Quem tocar primeiro em ${formatBRL(round.fixed_price_cents)} arremata na hora`
+        } />
 
       {round.status === "cancelled" ? (
         <section className="rounded-md border border-line bg-surface p-4 text-center">
@@ -233,6 +239,9 @@ function BidControls({
       />
       {closing && <p className="text-center text-sm font-bold text-live">Tempo esgotado. Encerrando…</p>}
       {round.status === "paused" && <p className="text-center text-sm text-warn">Rodada pausada pelo leiloeiro.</p>}
+      {fixed && round.fixed_price_cents != null && (
+        <p className="text-center text-xs font-bold text-accent">{formatBRL(round.fixed_price_cents)} arremata na hora. Sem ninguém nele, leva o maior lance no fim.</p>
+      )}
       {fixed && <p className="text-center text-xs text-muted">Opções abaixo do lance atual ficam desativadas. Lances não podem ser cancelados.</p>}
     </div>
   );

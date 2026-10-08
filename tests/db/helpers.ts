@@ -154,7 +154,7 @@ export class TestDb {
         mode === "highest_bid" && !opts.options ? (opts.startPrice ?? 600) : null,
         mode === "highest_bid" && !opts.options ? (opts.increments ?? [100, 200, 500]) : null,
         opts.options ?? null,
-        mode === "speed" ? (opts.fixedPrice ?? 1000) : null,
+        mode === "speed" ? (opts.fixedPrice ?? 1000) : (opts.fixedPrice ?? null),
         opts.timer ? "timer" : "manual",
         opts.timer ?? null,
       ],

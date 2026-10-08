@@ -13,6 +13,7 @@ import { formatAmountShort, parseBRL } from "@/lib/money";
 
 type Mode = "increments" | "options" | "speed";
 type Close = "timer" | "manual";
+type SpeedKind = "single" | "options";
 
 const MODES = [
   { value: "increments", label: "Maior lance" },
@@ -23,6 +24,11 @@ const CLOSES = [
   { value: "timer", label: "Pelo cronômetro" },
   { value: "manual", label: "Manual" },
 ] as const;
+const SPEED_KINDS = [
+  { value: "single", label: "Preço único" },
+  { value: "options", label: "Até 4 opções" },
+] as const;
+const MAX_SPEED_OPTIONS = 4;
 const PRESET_INCREMENTS = [100, 200, 500, 1000];
 const MAX_INCREMENTS = 3;
 const MAX_CENTS = 10_000_000; // R$ 100.000
@@ -60,11 +66,16 @@ export function RoundSheet({
   onClose: () => void;
 }) {
   const [card, setCard] = useState<{ id: string; name: string } | null>(editing ? { id: editing.card.id, name: editing.card.name } : (initialCard ?? null));
-  const [mode, setMode] = useState<Mode>(editing ? (editing.mode === "speed" ? "speed" : editing.bid_options_cents?.length ? "options" : "increments") : "increments");
+  // rapidez com opções é guardada como maior lance com opções + preço de arremate (= maior opção)
+  const speedOptions = editing?.mode === "highest_bid" && editing.fixed_price_cents != null;
+  const [mode, setMode] = useState<Mode>(
+    editing ? (editing.mode === "speed" || speedOptions ? "speed" : editing.bid_options_cents?.length ? "options" : "increments") : "increments",
+  );
+  const [speedKind, setSpeedKind] = useState<SpeedKind>(speedOptions ? "options" : "single");
   const [start, setStart] = useState(editing?.start_price_cents ?? 500);
   const [increments, setIncrements] = useState<number[]>(editing?.increments_cents ?? [100, 200, 500]);
   const [options, setOptions] = useState<number[]>(editing?.bid_options_cents ?? []);
-  const [fixed, setFixed] = useState(editing?.fixed_price_cents != null ? formatAmountShort(editing.fixed_price_cents) : "");
+  const [fixed, setFixed] = useState(editing?.mode === "speed" && editing.fixed_price_cents != null ? formatAmountShort(editing.fixed_price_cents) : "");
   const [close, setClose] = useState<Close>(editing?.close_mode ?? "timer");
   const [seconds, setSeconds] = useState(editing?.duration_seconds ?? 20);
   const [adding, setAdding] = useState<"increment" | "option" | null>(null);
@@ -96,7 +107,18 @@ export function RoundSheet({
     const errs: Record<string, string | undefined> = {};
     const row: Record<string, unknown> = {};
     const fixedCents = parseBRL(fixed);
-    if (mode === "speed") {
+    if (mode === "speed" && speedKind === "options") {
+      if (options.length < 2 || options.length > MAX_SPEED_OPTIONS) errs.options = "Escolha de 2 a 4 valores";
+      Object.assign(row, {
+        mode: "highest_bid",
+        close_mode: close,
+        duration_seconds: close === "timer" ? seconds : null,
+        start_price_cents: null,
+        increments_cents: null,
+        bid_options_cents: options,
+        fixed_price_cents: options.length ? Math.max(...options) : null,
+      });
+    } else if (mode === "speed") {
       if (!fixedCents || fixedCents > MAX_CENTS) errs.fixed = "Informe o preço, ex.: 12";
       Object.assign(row, { mode: "speed", fixed_price_cents: fixedCents, close_mode: "manual", duration_seconds: null, start_price_cents: null, increments_cents: null, bid_options_cents: null });
     } else {
@@ -208,6 +230,45 @@ export function RoundSheet({
     </div>
   );
 
+  const optionsMax = mode === "speed" ? MAX_SPEED_OPTIONS : 6;
+  const optionsEditor = (
+    <MultiChips
+      label="Valores para o comprador escolher"
+      options={options.map((c) => ({ value: c, label: brl(c) }))}
+      selected={options}
+      onToggle={(v) => setOptions((s) => s.filter((x) => x !== v))}
+      error={errors.options}
+      hint={
+        mode === "speed"
+          ? options.length >= 2
+            ? `Quem tocar primeiro em ${brl(Math.max(...options))} arremata na hora. Se ninguém tocar, leva o maior lance quando a rodada encerrar.`
+            : "De 2 a 4 valores. O maior arremata na hora; senão, leva o maior lance no fim."
+          : "Igual às votações do WhatsApp. De 2 a 6 valores; toque num valor para tirar."
+      }
+      extra={
+        options.length < optionsMax &&
+        adding !== "option" && (
+          <ChipButton
+            onClick={() => {
+              setAdding("option");
+              setExtra("");
+            }}
+          >
+            + valor
+          </ChipButton>
+        )
+      }
+    />
+  );
+  const closeControls = (
+    <>
+      <ChoiceChips label="Encerramento" options={CLOSES} value={close} onChange={setClose} hint={close === "manual" ? "Você encerra pelo botão “Encerrar agora”." : "Lance que assume a liderança nos últimos 5 s soma 10 s ao cronômetro."} />
+      {mode !== "increments" && close === "timer" && (
+        <Stepper label="Cronômetro" value={seconds} onChange={setSeconds} step={5} min={5} max={600} format={(s) => `${s} s`} parse={(s) => (/^\d+$/.test(s.trim()) ? Number(s) : null)} />
+      )}
+    </>
+  );
+
   return (
     <Sheet title={title} onClose={onClose}>
       <fieldset>
@@ -239,7 +300,26 @@ export function RoundSheet({
         </div>
       </fieldset>
 
-      {mode === "speed" ? (
+      {mode === "speed" && (
+        <ChoiceChips
+          label="Tipo de rapidez"
+          options={SPEED_KINDS}
+          value={speedKind}
+          onChange={(v) => {
+            setSpeedKind(v);
+            setErrors({});
+            setAdding(null);
+            if (v === "options") setOptions((s) => s.slice(0, MAX_SPEED_OPTIONS));
+          }}
+        />
+      )}
+      {mode === "speed" && speedKind === "options" ? (
+        <>
+          {optionsEditor}
+          {extraInput}
+          {closeControls}
+        </>
+      ) : mode === "speed" ? (
         <Field
           label="Preço fixo (R$)"
           inputMode="decimal"
@@ -287,33 +367,10 @@ export function RoundSheet({
               />
             </>
           ) : (
-            <MultiChips
-              label="Valores para o comprador escolher"
-              options={options.map((c) => ({ value: c, label: brl(c) }))}
-              selected={options}
-              onToggle={(v) => setOptions((s) => s.filter((x) => x !== v))}
-              error={errors.options}
-              hint="Igual às votações do WhatsApp. De 2 a 6 valores; toque num valor para tirar."
-              extra={
-                options.length < 6 &&
-                adding !== "option" && (
-                  <ChipButton
-                    onClick={() => {
-                      setAdding("option");
-                      setExtra("");
-                    }}
-                  >
-                    + valor
-                  </ChipButton>
-                )
-              }
-            />
+            optionsEditor
           )}
           {extraInput}
-          <ChoiceChips label="Encerramento" options={CLOSES} value={close} onChange={setClose} hint={close === "manual" ? "Você encerra pelo botão “Encerrar agora”." : "Lance que assume a liderança nos últimos 5 s soma 10 s ao cronômetro."} />
-          {mode === "options" && close === "timer" && (
-            <Stepper label="Cronômetro" value={seconds} onChange={setSeconds} step={5} min={5} max={600} format={(s) => `${s} s`} parse={(s) => (/^\d+$/.test(s.trim()) ? Number(s) : null)} />
-          )}
+          {closeControls}
         </>
       )}
       <FormError message={formError} />
