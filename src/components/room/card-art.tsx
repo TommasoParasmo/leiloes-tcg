@@ -2,8 +2,9 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Foto da carta (design §4b e §5 CardArt): recorte cover com véu escuro para os rótulos.
- * O toque abre a foto ampliada com as fotos adicionais.
+ * Foto da carta (design §4b e §5 CardArt), grande e inteira: a carta é retrato (63×88),
+ * então a foto aparece sem corte sobre um fundo desfocado dela mesma. A altura cabe
+ * na tela do celular junto com o lance e os botões. O toque abre a foto ampliada.
  */
 export function CardArt({ photos, label, alt }: { photos: string[]; label: string; alt: string }) {
   const [open, setOpen] = useState(false);
@@ -13,12 +14,16 @@ export function CardArt({ photos, label, alt }: { photos: string[]; label: strin
       <button
         type="button"
         onClick={() => main && setOpen(true)}
-        className="relative block h-[180px] w-full overflow-hidden rounded-md border border-line bg-surface text-left"
+        className="relative block h-[clamp(220px,42svh,420px)] w-full overflow-hidden rounded-md border border-line bg-surface text-left"
         aria-label={`Ampliar foto de ${alt}`}
       >
         {main ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={main} alt={alt} className="size-full object-cover" />
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={main} alt="" aria-hidden className="absolute inset-0 size-full scale-110 object-cover opacity-40 blur-xl" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={main} alt={alt} className="relative mx-auto h-full w-auto max-w-full object-contain py-2 drop-shadow-[0_8px_24px_rgba(0,0,0,.5)]" />
+          </>
         ) : (
           <span className="grid size-full place-items-center text-sm text-muted">Sem foto</span>
         )}

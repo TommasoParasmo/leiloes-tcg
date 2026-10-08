@@ -22,7 +22,7 @@ type Toast = { tone: "live" | "danger" | "neutral"; text: string; detail?: strin
 
 export function LiveRoom({ event, initialRound, initialCard }: { event: EventInfo; initialRound: RoundState | null; initialCard: CardInfo | null }) {
   const [sb] = useState(createClient);
-  const room = useRoom(sb, event.id, { round: initialRound, card: initialCard });
+  const room = useRoom(sb, event.id, { round: initialRound, card: initialCard, eventStatus: event.status });
   const { round, card } = room;
 
   const hasTimer = round?.status === "open" && !!round.ends_at;
@@ -61,10 +61,11 @@ export function LiveRoom({ event, initialRound, initialCard }: { event: EventInf
     setPending({ amount, roundId: round.id });
     setToast(null);
     try {
+      const sentAt = Date.now();
       const result: AuctionResult = await withOneRetry(() =>
         amount == null ? buyNow(sb, round.id, key) : placeBid(sb, round.id, amount, key),
       );
-      if (result.state) room.applyState(result.state as RoundState);
+      if (result.state) room.applyState(result.state as RoundState, sentAt);
       if (!result.ok) setToast({ tone: "danger", text: auctionMessage(result) });
       else if (result.code === "tie_not_leading") setToast({ tone: "neutral", text: auctionMessage(result) });
     } catch {
@@ -75,13 +76,19 @@ export function LiveRoom({ event, initialRound, initialCard }: { event: EventInf
     }
   }
 
+  const eventOver = room.eventStatus === "finished" || room.eventStatus === "cancelled";
+
   if (!round || !card) {
     return (
-      <Shell event={event} round={round} reconnecting={room.reconnecting} announce={{ polite: "", assertive: "" }}>
-        <section className="rounded-md border border-line bg-surface p-5 text-center">
-          <h1 className="font-bold">A primeira carta ainda não foi liberada</h1>
-          <p className="mt-1 text-sm text-muted">Fique nesta tela: ela atualiza sozinha quando o leiloeiro começar.</p>
-        </section>
+      <Shell event={event} round={round} eventOver={eventOver} reconnecting={room.reconnecting} announce={{ polite: "", assertive: "" }}>
+        {eventOver ? (
+          <EventOver cancelled={room.eventStatus === "cancelled"} loggedIn={false} />
+        ) : (
+          <section className="rounded-md border border-line bg-surface p-5 text-center">
+            <h1 className="font-bold">A primeira carta ainda não foi liberada</h1>
+            <p className="mt-1 text-sm text-muted">Fique nesta tela: ela atualiza sozinha quando o leiloeiro começar.</p>
+          </section>
+        )}
       </Shell>
     );
   }
@@ -90,6 +97,8 @@ export function LiveRoom({ event, initialRound, initialCard }: { event: EventInf
   const closed = round.status === "closed" || round.status === "cancelled";
   const iWon = round.status === "closed" && round.leading_is_me;
   const block = round.my_block;
+  // cronômetro zerado: o servidor ainda vai fechar, então nada de toque que só daria erro
+  const closing = round.status === "open" && round.close_mode === "timer" && remaining === 0;
 
   // Anúncios para leitores de tela: a região fica sempre montada e só o texto muda.
   const toastText = toast ? [toast.text, toast.detail].filter(Boolean).join(". ") : "";
@@ -107,11 +116,13 @@ export function LiveRoom({ event, initialRound, initialCard }: { event: EventInf
               ? `${round.leading_nickname} ${round.mode === "speed" ? "arrematou primeiro" : "venceu"}.`
               : round.status === "paused"
                 ? "Rodada pausada pelo leiloeiro."
-                : "",
+                : closing
+                  ? "Tempo esgotado. Encerrando."
+                  : "",
   };
 
   return (
-    <Shell event={event} round={round} reconnecting={room.reconnecting} announce={announce}>
+    <Shell event={event} round={round} eventOver={eventOver} reconnecting={room.reconnecting} announce={announce}>
       {toast && <RoomToast {...toast} />}
       <CardArt photos={card.photos} label={label} alt={card.name} />
       <CardTitle card={card} extra={round.mode === "speed" && round.fixed_price_cents != null ? `Preço fixo ${formatBRL(round.fixed_price_cents)}` : undefined} />
@@ -133,10 +144,11 @@ export function LiveRoom({ event, initialRound, initialCard }: { event: EventInf
       ) : (
         <>
           <BidBox state={round} remaining={remaining} progress={timerProgress(round, remaining)} tone={bidBoxTone(round, remaining)} />
-          <BidControls round={round} block={block} pendingAmount={pending?.amount ?? null} busy={pending != null} onBid={(a) => submit(a)} />
+          <BidControls round={round} block={block} closing={closing} pendingAmount={pending?.amount ?? null} busy={pending != null} onBid={(a) => submit(a)} />
           <BidHistory bids={round.recent_bids} />
         </>
       )}
+      {eventOver && closed && <EventOver cancelled={room.eventStatus === "cancelled"} loggedIn={block !== "not_authenticated"} />}
     </Shell>
   );
 }
@@ -144,18 +156,21 @@ export function LiveRoom({ event, initialRound, initialCard }: { event: EventInf
 function Shell({
   event,
   round,
+  eventOver,
   reconnecting,
   announce,
   children,
 }: {
   event: EventInfo;
   round: RoundState | null;
+  eventOver: boolean;
   reconnecting: boolean;
   announce: { polite: string; assertive: string };
   children: React.ReactNode;
 }) {
-  const pill =
-    round?.status === "open" ? (
+  const pill = eventOver ? (
+    <Pill>Encerrado</Pill>
+  ) : round?.status === "open" ? (
       round.mode === "speed" ? <Pill tone="live" dot>Liberado</Pill> : <Pill tone="live" dot>Ao vivo</Pill>
     ) : round?.status === "paused" ? (
       <Pill tone="warn">Pausado</Pill>
@@ -190,12 +205,14 @@ function Shell({
 function BidControls({
   round,
   block,
+  closing,
   pendingAmount,
   busy,
   onBid,
 }: {
   round: RoundState;
   block: RoundState["my_block"];
+  closing: boolean;
   pendingAmount: number | null;
   busy: boolean;
   onBid: (amount: number) => void;
@@ -206,7 +223,13 @@ function BidControls({
   return (
     <div className="flex flex-col gap-2">
       {fixed && <p className="text-[11px] font-extrabold uppercase tracking-[.06em] text-muted">Escolha seu lance</p>}
-      <BidButtons choices={bidChoices(round)} fixedOptions={fixed} pendingAmount={busy ? (pendingAmount ?? -1) : null} onBid={onBid} />
+      <BidButtons
+        choices={bidChoices(round).map((c) => (closing ? { ...c, disabled: true } : c))}
+        fixedOptions={fixed}
+        pendingAmount={busy ? (pendingAmount ?? -1) : null}
+        onBid={onBid}
+      />
+      {closing && <p className="text-center text-sm font-bold text-live">Tempo esgotado. Encerrando…</p>}
       {round.status === "paused" && <p className="text-center text-sm text-warn">Rodada pausada pelo leiloeiro.</p>}
       {fixed && <p className="text-center text-xs text-muted">Opções abaixo do lance atual ficam desativadas. Lances não podem ser cancelados.</p>}
     </div>
@@ -231,6 +254,25 @@ function LoginToBid({ returnTo }: { returnTo: string }) {
         </Link>
         <Link href={`/cadastro${next}`} className="flex min-h-12 items-center justify-center rounded-md bg-surface-2 font-bold">
           Criar conta
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function EventOver({ cancelled, loggedIn }: { cancelled: boolean; loggedIn: boolean }) {
+  return (
+    <section className="rounded-md border border-line bg-surface p-4 text-center">
+      <h2 className="font-display text-lg font-extrabold">{cancelled ? "Evento cancelado" : "Evento encerrado"}</h2>
+      <p className="mt-1 text-sm text-muted">{cancelled ? "O leiloeiro cancelou este evento." : "Obrigado por participar! O próximo leilão é divulgado no grupo."}</p>
+      <div className={loggedIn ? "mt-3 grid grid-cols-2 gap-2" : "mt-3 grid gap-2"}>
+        {loggedIn && (
+          <Link href="/conta/lote" className="flex min-h-12 items-center justify-center rounded-md bg-accent font-bold text-on-accent">
+            Ver meu lote
+          </Link>
+        )}
+        <Link href="/" className="flex min-h-12 items-center justify-center rounded-md bg-surface-2 font-bold">
+          Próximos leilões
         </Link>
       </div>
     </section>

@@ -34,11 +34,11 @@ async function Eventos() {
   const { sb, sellerId } = await requireAdmin("/painel");
   const { data } = await sb
     .from("events")
-    .select("id, number, title, status, starts_at, rounds(count)")
+    .select("id, number, title, status, starts_at, rounds(id)")
     .eq("seller_id", sellerId)
     .order("number", { ascending: false })
     .limit(50);
-  const events = (data ?? []) as { id: string; number: number; title: string; status: string; starts_at: string | null; rounds: { count: number }[] }[];
+  const events = (data ?? []) as { id: string; number: number; title: string; status: string; starts_at: string | null; rounds: { id: string }[] }[];
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 pb-10 pt-4">
@@ -61,7 +61,7 @@ async function Eventos() {
                       Leilão #{e.number} · {e.title}
                     </p>
                     <p className="text-xs text-muted">
-                      {[when && `${when.day}/${when.month} ${when.time}`, `${e.rounds[0]?.count ?? 0} cartas`].filter(Boolean).join(" · ")}
+                      {[when && `${when.day}/${when.month} ${when.time}`, `${e.rounds.length} cartas`].filter(Boolean).join(" · ")}
                     </p>
                   </div>
                   <Pill tone={tone} dot={e.status === "live"}>

@@ -56,6 +56,46 @@ export function clockOffsetMs(serverNowIso: string, receivedAtLocalMs: number): 
   return Date.parse(serverNowIso) - receivedAtLocalMs;
 }
 
+export interface ClockSync {
+  offsetMs: number;
+  /** Ida e volta da medição usada; medições mais rápidas são mais precisas. */
+  rttMs: number;
+}
+
+/**
+ * Nova estimativa do relógio do servidor a partir de uma resposta com ida e volta conhecida.
+ * O servidor carimbou o horário mais ou menos no meio do caminho, então a latência é
+ * descontada. Medições bem mais lentas que a melhor recente são ignoradas (a rede
+ * oscilou), para o cronômetro não pular décimos; a tolerância cresce aos poucos para
+ * acompanhar uma rede que ficou mais lenta de vez.
+ */
+export function nextClockSync(prev: ClockSync | null, serverNowIso: string, sentAtMs: number, receivedAtMs: number): ClockSync {
+  const rtt = Math.max(0, receivedAtMs - sentAtMs);
+  const sample = { offsetMs: Date.parse(serverNowIso) - (sentAtMs + rtt / 2), rttMs: rtt };
+  if (!prev) return sample;
+  if (rtt <= prev.rttMs * 1.25 + 20) return sample;
+  return { offsetMs: prev.offsetMs, rttMs: prev.rttMs * 1.1 };
+}
+
+/**
+ * Junta um estado público (transmitido pelo canal da sala, igual para todos) com os
+ * campos pessoais que esta tela já tinha da mesma rodada. A liderança é reconhecida
+ * pelo apelido, que é único.
+ */
+export function mergePublicState(prev: RoundState, pub: RoundState): RoundState {
+  const me = prev.my_nickname;
+  const leadingIsMe = me != null && pub.leading_nickname === me;
+  return {
+    ...pub,
+    my_nickname: me,
+    my_block: prev.my_block,
+    leading_is_me: leadingIsMe,
+    my_best_bid_cents:
+      leadingIsMe && pub.current_amount_cents != null ? Math.max(prev.my_best_bid_cents ?? 0, pub.current_amount_cents) : prev.my_best_bid_cents,
+    recent_bids: pub.recent_bids.map((b) => ({ ...b, is_me: me != null && b.nickname === me })),
+  };
+}
+
 /** Tempo restante em ms, usando o relógio do servidor corrigido. null = sem cronômetro. */
 export function remainingMs(state: RoundState, localNowMs: number, offsetMs: number): number | null {
   if (state.status === "paused") return state.paused_remaining_ms;

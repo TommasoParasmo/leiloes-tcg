@@ -164,6 +164,28 @@ describe("painel do leiloeiro", () => {
     expect(Number(await endsAt()) - Number(late)).toBe(10_000);
   });
 
+  it("empate nos últimos 5 s não estende; extensões seguidas se somam", async () => {
+    const e = await db.event(seller, eventNumber++);
+    const r = await db.round(seller, e, { options: [600, 700, 800], timer: 60 });
+    await db.rpc(admin, "admin_open_round", [r]);
+    const [a, b, c] = await db.users(3);
+    const endsAt = async () => Number((await db.sql<{ ms: number }>(`select extract(epoch from ends_at) * 1000 as ms from rounds where id = $1`, [r]))[0].ms);
+    const nearEnd = () => db.sql(`update rounds set ends_at = clock_timestamp() + interval '2 seconds' where id = $1`, [r]);
+
+    expect((await db.rpc(a, "place_bid", [r, 600, key()])).code).toBe("leading");
+    await nearEnd();
+    const t0 = await endsAt();
+    expect((await db.rpc(b, "place_bid", [r, 600, key()])).code).toBe("tie_not_leading");
+    expect(await endsAt()).toBe(t0);
+
+    expect((await db.rpc(b, "place_bid", [r, 700, key()])).code).toBe("leading");
+    const t1 = await endsAt();
+    expect(t1 - t0).toBe(10_000);
+    // longe do fim de novo (12 s): não estende
+    expect((await db.rpc(c, "place_bid", [r, 800, key()])).code).toBe("leading");
+    expect(await endsAt()).toBe(t1);
+  });
+
   it("qualquer um pede o fechamento, mas o servidor só fecha se o cronômetro acabou", async () => {
     const e = await db.event(seller, eventNumber++);
     const r = await db.round(seller, e, { timer: 5 });

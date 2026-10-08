@@ -30,3 +30,11 @@ grant usage on schema auth to anon, authenticated;
 grant usage on schema public to anon, authenticated;
 alter default privileges in schema public grant all on tables to anon, authenticated;
 alter default privileges in schema public grant all on sequences to anon, authenticated;
+
+-- Realtime: realtime.send() grava o que seria transmitido, para os testes conferirem.
+create schema if not exists realtime;
+create table if not exists realtime.sent (id bigserial primary key, topic text, event text, payload jsonb, private boolean);
+create or replace function realtime.send(payload jsonb, event text, topic text, private boolean default true)
+returns void
+language sql
+as $$ insert into realtime.sent (topic, event, payload, private) values (topic, event, payload, private); $$;

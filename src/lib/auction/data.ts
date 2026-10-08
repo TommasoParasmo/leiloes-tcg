@@ -43,31 +43,19 @@ export async function fetchCard(sb: SupabaseClient, cardId: string): Promise<Car
 export async function fetchEvent(sb: SupabaseClient, eventId: string): Promise<EventInfo | null> {
   const { data, error } = await sb
     .from("events")
-    .select("id, number, title, status, rounds(count)")
+    .select("id, number, title, status, rounds(id)")
     .eq("id", eventId)
-    .maybeSingle<{ id: string; number: number; title: string; status: EventInfo["status"]; rounds: { count: number }[] }>();
+    .maybeSingle<{ id: string; number: number; title: string; status: EventInfo["status"]; rounds: { id: string }[] }>();
   if (error) throw error;
   if (!data) return null;
-  return { id: data.id, number: data.number, title: data.title, status: data.status, total_rounds: data.rounds[0]?.count ?? 0 };
+  return { id: data.id, number: data.number, title: data.title, status: data.status, total_rounds: data.rounds.length };
 }
 
-/**
- * Rodada que a sala deve mostrar: a aberta/pausada; senão a última encerrada
- * (para o resultado continuar na tela); senão a próxima da fila.
- */
-export async function pickRoomRoundId(sb: SupabaseClient, eventId: string): Promise<string | null> {
-  const { data, error } = await sb
-    .from("rounds")
-    .select("id, position, status, closed_at")
-    .eq("event_id", eventId)
-    .order("position");
+/** Uma leitura para a sala: rodada da vez (estado pessoal) e status do evento. */
+export async function fetchRoomState(sb: SupabaseClient, eventId: string): Promise<{ event_status: EventInfo["status"]; state: RoundState | null } | null> {
+  const { data, error } = await sb.rpc("room_state", { p_event_id: eventId });
   if (error) throw error;
-  const rounds = (data ?? []) as { id: string; position: number; status: string; closed_at: string | null }[];
-  const active = rounds.find((r) => r.status === "open" || r.status === "paused");
-  if (active) return active.id;
-  const finished = rounds.filter((r) => r.closed_at).sort((a, b) => Date.parse(b.closed_at!) - Date.parse(a.closed_at!));
-  if (finished[0]) return finished[0].id;
-  return rounds.find((r) => r.status === "queued")?.id ?? null;
+  return (data as { event_status: EventInfo["status"]; state: RoundState | null } | null) ?? null;
 }
 
 export async function placeBid(sb: SupabaseClient, roundId: string, amountCents: number, key: string): Promise<AuctionResult> {

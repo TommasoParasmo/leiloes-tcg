@@ -12,6 +12,9 @@ export interface RecentBid {
 
 export interface RoundState {
   id: string;
+  /** Versão da rodada: sobe a cada mudança no servidor. */
+  rev: number;
+  event_status: EventInfo["status"];
   event_id: string;
   card_id: string;
   position: number;
@@ -33,6 +36,7 @@ export interface RoundState {
   current_amount_cents: number | null;
   leading_nickname: string | null;
   leading_is_me: boolean;
+  my_nickname: string | null;
   my_best_bid_cents: number | null;
   my_block: "not_authenticated" | "profile_required" | "cpf_required" | "blocked" | "must_close_lot" | null;
   bid_count: number;
