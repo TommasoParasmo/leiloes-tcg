@@ -34,7 +34,7 @@ export interface RoundState {
   leading_nickname: string | null;
   leading_is_me: boolean;
   my_best_bid_cents: number | null;
-  my_block: "not_authenticated" | "profile_required" | "blocked" | "must_close_lot" | null;
+  my_block: "not_authenticated" | "profile_required" | "cpf_required" | "blocked" | "must_close_lot" | null;
   bid_count: number;
   server_now: string;
   recent_bids: RecentBid[];

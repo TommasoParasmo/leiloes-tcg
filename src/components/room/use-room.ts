@@ -90,14 +90,16 @@ export function useRoom(sb: SupabaseClient, eventId: string, initial: { round: R
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("online", onVisible);
 
-    // primeira leitura já na montagem (o painel começa sem estado do servidor)
-    if (!roundIdRef.current) void refresh().catch(() => setReconnecting(true));
+    // leitura já na montagem: o painel começa sem estado, e a página pode vir do cache do
+    // navegador (ex.: voltando do cadastro com o CPF, o "Falta seu CPF" precisa sumir na hora)
+    const first = setTimeout(() => void refresh().catch(() => setReconnecting(true)), 0);
 
     const poll = setInterval(() => {
       if (document.visibilityState === "visible") void refresh().catch(() => setReconnecting(true));
     }, SAFETY_POLL_MS);
 
     return () => {
+      clearTimeout(first);
       clearInterval(poll);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("online", onVisible);

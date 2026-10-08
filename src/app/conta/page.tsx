@@ -32,7 +32,7 @@ async function Conta() {
   const uid = data.user.id;
 
   const [{ data: profile }, { data: address }, { data: penalties }, lots] = await Promise.all([
-    sb.from("profiles").select("full_name, nickname, whatsapp, status, role").eq("id", uid).maybeSingle(),
+    sb.from("profiles").select("full_name, nickname, whatsapp, cpf, status, role").eq("id", uid).maybeSingle(),
     sb.from("addresses").select("cep, street, number, complement, district, city, state").eq("user_id", uid).eq("is_default", true).maybeSingle(),
     sb.from("penalties").select("id, reason, issued_at").eq("user_id", uid).is("removed_at", null),
     myLots(sb),
@@ -47,7 +47,33 @@ async function Conta() {
           {profile?.status === "blocked" ? <Pill tone="danger">Bloqueado</Pill> : <Pill tone="win">Habilitado</Pill>}
         </div>
 
-        {openLot && <AccumulationCard lot={openLot} />}
+        {profile && !profile.cpf && (
+          <Link href="/conta/cadastro" className="flex items-center justify-between gap-3 rounded-md border border-warn/50 bg-warn/10 p-4">
+            <span>
+              <span className="block font-bold text-warn">Falta seu CPF</span>
+              <span className="block text-sm text-muted">Necessário antes do primeiro lance.</span>
+            </span>
+            <span aria-hidden className="text-xl text-warn">
+              ›
+            </span>
+          </Link>
+        )}
+
+        {openLot && (
+          <>
+            <AccumulationCard lot={openLot} />
+            <Link href="/conta/lote" className={openLot.must_close ? "flex min-h-12 items-center justify-center rounded-md bg-accent font-bold text-on-accent" : "flex min-h-12 items-center justify-center rounded-md bg-surface-2 font-bold"}>
+              {openLot.must_close ? "Fechar lote agora" : "Ver lote e fechar"}
+            </Link>
+          </>
+        )}
+
+        <Link href="/conta/pedidos" className="flex min-h-12 items-center justify-between rounded-md border border-line bg-surface px-4 font-bold">
+          Meus pedidos e pagamentos
+          <span aria-hidden className="text-muted">
+            ›
+          </span>
+        </Link>
 
         <section className="rounded-md border border-line bg-surface p-4">
           <div className="flex items-center justify-between">

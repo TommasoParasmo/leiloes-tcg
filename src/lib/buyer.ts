@@ -20,6 +20,9 @@ export interface Lot {
   events_used: number;
   max_events: number;
   must_close: boolean;
+  /** Prazo do Pix; null enquanto o primeiro leilão do lote não terminou. */
+  due_at: string | null;
+  order_id: string | null;
   total_cents: number;
   wins: LotWin[];
 }

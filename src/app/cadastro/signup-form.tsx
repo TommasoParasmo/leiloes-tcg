@@ -55,7 +55,7 @@ function validate(x: Values): Errors {
   };
 }
 
-export function SignupForm() {
+export function SignupForm({ next = "/" }: { next?: string }) {
   const router = useRouter();
   const [values, setValues] = useState(empty);
   const [errors, setErrors] = useState<Errors>({});
@@ -97,12 +97,21 @@ export function SignupForm() {
     setFormError(null);
     const sb = createClient();
 
-    const { data: available } = await sb.rpc("nickname_available", { p_nickname: values.nickname.trim() });
-    if (available === false) {
+    const form = e.currentTarget as HTMLFormElement;
+    const [{ data: nickFree }, { data: phoneFree }] = await Promise.all([
+      sb.rpc("nickname_available", { p_nickname: values.nickname.trim() }),
+      sb.rpc("whatsapp_available", { p_whatsapp: v.onlyDigits(values.whatsapp) }),
+    ]);
+    if (nickFree === false || phoneFree === false) {
       setPending(false);
-      setErrors((s) => ({ ...s, nickname: "Esse apelido já está em uso. Escolha outro." }));
+      setErrors((s) => ({
+        ...s,
+        nickname: nickFree === false ? "Esse apelido já está em uso. Escolha outro." : s.nickname,
+        // uma conta por WhatsApp: evita contas duplicadas de quem foi bloqueado
+        whatsapp: phoneFree === false ? "Esse WhatsApp já tem conta. Entre com ela ou recupere a senha." : s.whatsapp,
+      }));
       setFormError("Confira os campos destacados.");
-      focusFirstInvalid(e.currentTarget as HTMLFormElement);
+      focusFirstInvalid(form);
       return;
     }
 
@@ -110,7 +119,7 @@ export function SignupForm() {
       email: values.email.trim(),
       password: values.password,
       options: {
-        emailRedirectTo: `${publicEnv.siteUrl}/auth/callback?next=${encodeURIComponent("/entrar?confirmado=1")}`,
+        emailRedirectTo: `${publicEnv.siteUrl}/auth/callback?next=${encodeURIComponent(`/entrar?confirmado=1&next=${encodeURIComponent(next)}`)}`,
         data: {
           full_name: values.fullName.trim(),
           nickname: values.nickname.trim(),
@@ -133,7 +142,7 @@ export function SignupForm() {
     }
     if (data.session) {
       // continua "enviando" até a navegação terminar, para não haver segundo envio
-      router.replace("/");
+      router.replace(next);
       router.refresh();
       return;
     }
