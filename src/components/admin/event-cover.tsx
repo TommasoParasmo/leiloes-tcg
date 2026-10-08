@@ -16,6 +16,8 @@ import { canOpenPhoto, shrinkPhoto, withTimeout } from "@/lib/image";
 export function EventCover({ sb, eventId, sellerId, initialUrl }: { sb: SupabaseClient; eventId: string; sellerId: string; initialUrl: string | null }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
+  // trava síncrona: o estado só muda no próximo render
+  const busy = useRef(false);
   const [url, setUrl] = useState(initialUrl);
   const [pending, setPending] = useState<"upload" | "reset" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -33,11 +35,17 @@ export function EventCover({ sb, eventId, sellerId, initialUrl }: { sb: Supabase
   }
 
   async function upload(file: File) {
-    if (pending) return;
+    if (busy.current) return;
+    busy.current = true;
     setError(null);
     setSaved(null);
-    if (!(await canOpenPhoto(file))) return setError("Não foi possível abrir essa foto. Tente uma JPG ou PNG.");
+    // trava antes de qualquer espera: duas trocas seguidas não podem terminar fora de ordem
     setPending("upload");
+    if (!(await canOpenPhoto(file))) {
+      setPending(null);
+      busy.current = false;
+      return setError("Não foi possível abrir essa foto. Tente uma JPG ou PNG.");
+    }
     const path = `${sellerId}/eventos/${eventId}/capa-${crypto.randomUUID().slice(0, 8)}.jpg`;
     try {
       const blob = await withTimeout(shrinkPhoto(file, 1600), 30_000);
@@ -54,10 +62,12 @@ export function EventCover({ sb, eventId, sellerId, initialUrl }: { sb: Supabase
       setError("Não foi possível enviar a imagem. Confira a conexão e tente de novo.");
     }
     setPending(null);
+    busy.current = false;
   }
 
   async function reset() {
-    if (pending) return;
+    if (busy.current) return;
+    busy.current = true;
     setError(null);
     setSaved(null);
     setPending("reset");
@@ -71,6 +81,7 @@ export function EventCover({ sb, eventId, sellerId, initialUrl }: { sb: Supabase
       setError("Sem conexão com o servidor. Tente de novo.");
     }
     setPending(null);
+    busy.current = false;
   }
 
   return (
