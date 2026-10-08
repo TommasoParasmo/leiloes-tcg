@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { safeNext } from "@/lib/safe-next";
 import { Suspense } from "react";
 import { AppBar } from "@/components/layout/app-bar";
 import { LoginForm } from "./login-form";
@@ -39,6 +40,3 @@ async function Entrar({ searchParams }: { searchParams: Search }) {
 }
 
 /** Só redireciona para caminhos internos (evita redirecionamento aberto). */
-function safeNext(next?: string) {
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
-}

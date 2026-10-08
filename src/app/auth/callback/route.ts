@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
+import { safeNext } from "@/lib/safe-next";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -8,8 +9,7 @@ import { createClient } from "@/lib/supabase/server";
  */
 export async function GET(request: NextRequest) {
   const url = request.nextUrl;
-  const next = url.searchParams.get("next") ?? "/";
-  const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/";
+  const next = safeNext(url.searchParams.get("next"));
   const sb = await createClient();
 
   const code = url.searchParams.get("code");
@@ -23,5 +23,5 @@ export async function GET(request: NextRequest) {
       : { error: new Error("missing code") };
 
   if (error) return NextResponse.redirect(new URL("/entrar?erro=link", url.origin));
-  return NextResponse.redirect(new URL(safeNext, url.origin));
+  return NextResponse.redirect(new URL(next, url.origin));
 }

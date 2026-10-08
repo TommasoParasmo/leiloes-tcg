@@ -30,29 +30,36 @@ export function useRoom(sb: SupabaseClient, eventId: string, initial: { round: R
   const [reconnecting, setReconnecting] = useState(false);
   const roundIdRef = useRef(initial.round?.id ?? null);
   const cardIdRef = useRef(initial.card?.id ?? null);
-  const latestServerNow = useRef(initial.round?.server_now ?? "");
+  const latestServerNow = useRef(initial.round ? Date.parse(initial.round.server_now) : 0);
 
-  const applyState = useCallback((s: RoundState) => {
-    // ignora respostas fora de ordem (uma leitura antiga chegando depois de uma nova)
-    if (s.id === roundIdRef.current && s.server_now < latestServerNow.current) return;
-    latestServerNow.current = s.server_now;
-    roundIdRef.current = s.id;
-    setOffset(clockOffsetMs(s.server_now, Date.now()));
-    setRound(s);
-  }, []);
+  // Respostas fora de ordem são descartadas pelo relógio do servidor, de qualquer rodada:
+  // uma leitura antiga da rodada encerrada não pode voltar a sala para a carta anterior.
+  const isStale = useCallback((s: RoundState) => Date.parse(s.server_now) < latestServerNow.current, []);
+
+  const applyState = useCallback(
+    (s: RoundState) => {
+      if (isStale(s)) return;
+      latestServerNow.current = Date.parse(s.server_now);
+      roundIdRef.current = s.id;
+      setOffset(clockOffsetMs(s.server_now, Date.now()));
+      setRound(s);
+    },
+    [isStale],
+  );
 
   const loadRound = useCallback(
     async (roundId: string) => {
       const s = await fetchRoundState(sb, roundId);
-      if (!s) return;
+      if (!s || isStale(s)) return;
       if (s.card_id !== cardIdRef.current) {
         const c = await fetchCard(sb, s.card_id);
+        if (isStale(s)) return;
         cardIdRef.current = c?.id ?? null;
         setCard(c);
       }
       applyState(s);
     },
-    [sb, applyState],
+    [sb, applyState, isStale],
   );
 
   const refresh = useCallback(async () => {
