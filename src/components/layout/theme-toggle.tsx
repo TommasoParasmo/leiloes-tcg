@@ -1,5 +1,6 @@
 "use client";
 import { useSyncExternalStore } from "react";
+import { THEME_COLORS } from "@/lib/theme";
 
 type Theme = "light" | "dark";
 
@@ -19,6 +20,8 @@ export function ThemeToggle() {
       type="button"
       onClick={() => {
         document.documentElement.dataset.theme = next;
+        // barra do navegador e do app instalado acompanham a escolha
+        document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]').forEach((m) => (m.content = THEME_COLORS[next]));
         try {
           localStorage.setItem("theme", next);
         } catch {
