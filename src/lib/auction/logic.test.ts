@@ -53,6 +53,16 @@ describe("bidChoices", () => {
     expect(bidChoices(s).every((c) => c.disabled)).toBe(true);
   });
 
+  it("rapidez com opções: quem lidera ainda pode tocar no valor que arremata na hora", () => {
+    const s = { ...base, bid_options_cents: [1000, 1100, 1200, 1300], fixed_price_cents: 1300, current_amount_cents: 1100, leading_is_me: true };
+    expect(bidChoices(s).map((c) => [c.amount_cents, c.disabled])).toEqual([
+      [1000, true],
+      [1100, true],
+      [1200, true],
+      [1300, false],
+    ]);
+  });
+
   it("opções fixas: valores até o atual ficam desativados", () => {
     const s = { ...base, bid_options_cents: [900, 600, 700, 800], current_amount_cents: 700 };
     expect(bidChoices(s).map((c) => [c.amount_cents, c.disabled, c.primary])).toEqual([
