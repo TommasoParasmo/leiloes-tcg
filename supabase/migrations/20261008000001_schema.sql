@@ -90,7 +90,8 @@ create table public.events (
   started_at timestamptz,
   finished_at timestamptz,
   created_at timestamptz not null default now(),
-  unique (seller_id, number)
+  unique (seller_id, number),
+  unique (id, seller_id)                    -- alvo das FKs compostas (garante mesmo leiloeiro)
 );
 
 create table public.cards (
@@ -105,7 +106,8 @@ create table public.cards (
   condition text,
   notes text,
   liga_price_cents bigint check (liga_price_cents is null or liga_price_cents >= 0),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  unique (id, seller_id)
 );
 
 create table public.card_photos (
@@ -120,8 +122,8 @@ create unique index card_photos_position on public.card_photos (card_id, positio
 create table public.rounds (
   id uuid primary key default gen_random_uuid(),
   seller_id uuid not null references public.sellers (id),
-  event_id uuid not null references public.events (id),
-  card_id uuid not null references public.cards (id),
+  event_id uuid not null,
+  card_id uuid not null,
   position int not null,
   mode public.auction_mode not null,
   status public.round_status not null default 'queued',
@@ -144,6 +146,9 @@ create table public.rounds (
   cancel_reason text,
   created_at timestamptz not null default now(),
   unique (event_id, position) deferrable initially deferred,
+  -- evento e carta precisam ser do mesmo leiloeiro da rodada
+  foreign key (event_id, seller_id) references public.events (id, seller_id),
+  foreign key (card_id, seller_id) references public.cards (id, seller_id),
   constraint mode_fields check (
     (mode = 'speed' and fixed_price_cents is not null)
     or (mode = 'highest_bid' and (start_price_cents is not null or bid_options_cents is not null)
@@ -165,6 +170,7 @@ create table public.bids (
   unique (user_id, idempotency_key)
 );
 create index bids_round on public.bids (round_id, seq desc);
+create index bids_user on public.bids (user_id);
 
 alter table public.rounds
   add constraint rounds_leading_bid_fk foreign key (leading_bid_id) references public.bids (id);

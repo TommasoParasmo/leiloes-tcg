@@ -20,7 +20,7 @@ Plano completo: etapas 1 a 9 (ver thread "Dev" do projeto).
 - Encerramento vincula o arremate ao lote de acumulação, notifica o vencedor e enfileira a publicação no
   WhatsApp (modo manual por padrão).
 - Bloqueio de participação: usuário bloqueado e comprador com lote que já passou por 2 leilões.
-- 18 testes de banco, incluindo 200 arremates simultâneos (exatamente 1 vencedor) e 120 lances
+- 21 testes de banco, incluindo 200 arremates simultâneos (exatamente 1 vencedor) e 120 lances
   simultâneos em 3 ondas (líder sempre correto).
 
 ## Pendente
@@ -37,6 +37,8 @@ Plano completo: etapas 1 a 9 (ver thread "Dev" do projeto).
   (protege contra erro de digitação).
 - Modo opções fixas: lance igual ao atual é aceito e registrado, mas quem lançou primeiro segue
   liderando (regra de empate das votações do WhatsApp).
+- O leiloeiro só vê perfil e endereço de quem deu lance ou tem lote na loja dele (preparação para
+  múltiplos leiloeiros). Um comprador recém-cadastrado sem lances ainda não aparece na lista do admin.
 - Acumulação conta eventos do leiloeiro (não cancelados) desde o primeiro arremate do lote.
 
 ## A confirmar com o Tom

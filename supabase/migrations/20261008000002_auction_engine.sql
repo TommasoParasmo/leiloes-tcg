@@ -161,15 +161,15 @@ begin
   select * into v_event from public.events where id = r.event_id;
   select * into v_card from public.cards where id = r.card_id;
 
-  -- lote de acumulação: usa o aberto ou abre um novo começando neste evento
+  -- lote de acumulação: usa o aberto ou abre um novo começando neste evento.
+  -- O insert com on conflict serializa dois arremates simultâneos do mesmo comprador
+  -- (em eventos diferentes): o segundo espera o primeiro e passa a usar o mesmo lote.
+  insert into public.lots (seller_id, user_id, first_event_id, first_event_number)
+  values (r.seller_id, v_bid.user_id, v_event.id, v_event.number)
+  on conflict (seller_id, user_id) where status = 'open' do nothing;
   select * into v_lot from public.lots
    where seller_id = r.seller_id and user_id = v_bid.user_id and status = 'open'
    for update;
-  if not found then
-    insert into public.lots (seller_id, user_id, first_event_id, first_event_number)
-    values (r.seller_id, v_bid.user_id, v_event.id, v_event.number)
-    returning * into v_lot;
-  end if;
 
   insert into public.wins (seller_id, round_id, bid_id, user_id, event_id, card_id, lot_id, amount_cents)
   values (r.seller_id, r.id, v_bid.id, v_bid.user_id, r.event_id, r.card_id, v_lot.id, v_bid.amount_cents)

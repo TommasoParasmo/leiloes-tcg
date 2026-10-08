@@ -235,6 +235,44 @@ describe("Permissões e participação", () => {
     expect(state.status).toBe("open");
   });
 
+  it("admin não cria rodada com evento ou carta de outro leiloeiro", async () => {
+    const other = await db.seller();
+    const otherAdmin = await db.user({ role: "admin", sellerId: other });
+    const foreignEvent = await db.event(seller, eventNumber++);
+    const foreignCard = await db.card(seller);
+    const ownEvent = await db.event(other, 1);
+    const ownCard = await db.card(other);
+    const insert = (eventId: string, cardId: string) =>
+      db.as(otherAdmin, (c) =>
+        c.query(
+          `insert into rounds (seller_id, event_id, card_id, position, mode, fixed_price_cents) values ($1, $2, $3, 1, 'speed', 500)`,
+          [other, eventId, cardId],
+        ),
+      );
+    await expect(insert(foreignEvent, ownCard)).rejects.toThrow(/foreign key/);
+    await expect(insert(ownEvent, foreignCard)).rejects.toThrow(/foreign key/);
+    await expect(insert(ownEvent, ownCard)).resolves.toBeTruthy();
+  });
+
+  it("admin só vê dados pessoais de compradores da própria loja", async () => {
+    const other = await db.seller();
+    const otherAdmin = await db.user({ role: "admin", sellerId: other });
+    const { roundId } = await openRound({ startPrice: 600, increments: [100] });
+    const [buyer, stranger] = await db.users(2);
+    await db.rpc(buyer, "place_bid", [roundId, 600, key()]);
+    await db.sql(
+      `insert into addresses (user_id, cep, street, number, district, city, state) values ($1, '01001000', 'Praça da Sé', '1', 'Sé', 'São Paulo', 'SP')`,
+      [buyer],
+    );
+    const visible = (who: string) =>
+      db.as(who, async (c) => ({
+        profiles: (await c.query(`select id from profiles where id = any($1)`, [[buyer, stranger]])).rows.map((r) => r.id),
+        addresses: (await c.query(`select id from addresses where user_id = $1`, [buyer])).rows.length,
+      }));
+    expect(await visible(admin)).toEqual({ profiles: [buyer], addresses: 1 });
+    expect(await visible(otherAdmin)).toEqual({ profiles: [], addresses: 0 });
+  });
+
   it("comprador não escreve direto em lances, arremates nem no próprio papel", async () => {
     const { roundId } = await openRound({ startPrice: 600, increments: [100] });
     const [u] = await db.users(1);
@@ -281,6 +319,26 @@ describe("Arremate, acumulação e WhatsApp", () => {
     expect(msgs).toHaveLength(2);
     expect(msgs[0].status).toBe("manual_pending");
     expect(msgs[0].payload).toMatchObject({ card_name: "Horsea", card_variant: "Poké Ball Holo", amount_cents: 900, event_number: 15 });
+  });
+
+  it("arremates simultâneos do mesmo comprador em eventos diferentes usam um único lote", async () => {
+    for (let i = 0; i < 15; i++) {
+      const s = await db.seller();
+      const adm = await db.user({ role: "admin", sellerId: s });
+      const [buyer] = await db.users(1);
+      const rounds = await Promise.all(
+        [1, 2].map(async (n) => {
+          const e = await db.event(s, n);
+          const r = await db.round(s, e, { mode: "speed" });
+          await db.rpc(adm, "admin_open_round", [r]);
+          return r;
+        }),
+      );
+      const results = await Promise.all(rounds.map((r) => db.rpc(buyer, "buy_now", [r, key()])));
+      expect(results.map((r) => r.code)).toEqual(["won", "won"]);
+      const lots = await db.sql(`select id from lots where user_id = $1`, [buyer]);
+      expect(lots).toHaveLength(1);
+    }
   });
 
   it("eventos cancelados não contam para a acumulação", async () => {

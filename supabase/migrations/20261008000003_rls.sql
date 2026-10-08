@@ -3,15 +3,26 @@
 -- Dados pessoais e financeiros: só o dono e o leiloeiro.
 -- Escritas sensíveis: só via funções (lances, arremates, pagamentos, penalidades).
 
--- Leiloeiro de qualquer vendedor (SECURITY DEFINER evita recursão na política de profiles).
-create or replace function public.app_is_any_admin()
+-- O leiloeiro só enxerga dados pessoais de quem se relaciona com a sua loja:
+-- outros leiloeiros da mesma loja ou compradores com lance ou lote nela.
+-- SECURITY DEFINER evita recursão na política de profiles.
+create or replace function public.app_admin_can_see_user(p_user uuid)
 returns boolean
 language sql stable security definer set search_path = public
 as $$
-  select exists (select 1 from public.profiles where id = auth.uid() and role = 'admin' and status = 'active');
+  select exists (
+    select 1 from public.profiles a
+    where a.id = auth.uid() and a.role = 'admin' and a.status = 'active'
+      and (
+        exists (select 1 from public.profiles t where t.id = p_user and t.admin_seller_id = a.admin_seller_id)
+        or exists (select 1 from public.bids b join public.rounds r on r.id = b.round_id
+                   where b.user_id = p_user and r.seller_id = a.admin_seller_id)
+        or exists (select 1 from public.lots l where l.user_id = p_user and l.seller_id = a.admin_seller_id)
+      )
+  );
 $$;
-revoke execute on function public.app_is_any_admin() from public, anon;
-grant execute on function public.app_is_any_admin() to authenticated;
+revoke execute on function public.app_admin_can_see_user(uuid) from public, anon;
+grant execute on function public.app_admin_can_see_user(uuid) to authenticated;
 
 alter table public.sellers enable row level security;
 alter table public.profiles enable row level security;
@@ -37,9 +48,7 @@ create policy sellers_admin_update on public.sellers for update using (public.ap
 
 -- Perfis: o próprio usuário e o leiloeiro.
 create policy profiles_read_own on public.profiles for select using (id = auth.uid());
-create policy profiles_read_admin on public.profiles for select using (
-  public.app_is_any_admin()
-);
+create policy profiles_read_admin on public.profiles for select using (public.app_admin_can_see_user(id));
 create policy profiles_insert_own on public.profiles for insert with check (id = auth.uid() and role = 'buyer' and status = 'active');
 create policy profiles_update_own on public.profiles for update using (id = auth.uid());
 -- Papel e bloqueio nunca podem ser alterados pelo próprio usuário.
@@ -48,9 +57,7 @@ grant update (full_name, nickname, whatsapp, cpf) on public.profiles to authenti
 
 -- Endereços: CRUD do dono; leiloeiro lê.
 create policy addresses_own on public.addresses for all using (user_id = auth.uid()) with check (user_id = auth.uid());
-create policy addresses_admin_read on public.addresses for select using (
-  public.app_is_any_admin()
-);
+create policy addresses_admin_read on public.addresses for select using (public.app_admin_can_see_user(user_id));
 
 -- Catálogo
 create policy events_read on public.events for select using (status <> 'draft' or public.app_is_admin(seller_id));
