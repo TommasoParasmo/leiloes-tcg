@@ -20,6 +20,10 @@ begin
   if not found then return jsonb_build_object('ok', false, 'code', 'lot_not_found'); end if;
   if not public.app_is_admin(v_lot.seller_id) then return jsonb_build_object('ok', false, 'code', 'forbidden'); end if;
   if v_lot.status <> 'open' then return jsonb_build_object('ok', false, 'code', 'lot_already_closed'); end if;
+  -- o pedido guarda o endereço de entrega no fechamento: sem endereço não fecha
+  if not exists (select 1 from public.addresses where user_id = v_lot.user_id) then
+    return jsonb_build_object('ok', false, 'code', 'address_required');
+  end if;
   v_order := public.app_close_lot(v_lot.id, 'admin');
   return jsonb_build_object('ok', true, 'code', 'lot_closed', 'order_id', v_order);
 end;
