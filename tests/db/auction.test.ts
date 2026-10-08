@@ -422,6 +422,14 @@ describe("Sala ao vivo", () => {
     expect([ev.event, ev.payload.event_status]).toEqual(["event", "finished"]);
   });
 
+  it("rodada de evento em rascunho não vai para o canal público", async () => {
+    const e = await db.event(seller, 9000 + Math.floor(Math.random() * 90000), "draft");
+    await db.sql(`delete from realtime.sent`);
+    const r = await db.round(seller, e, { startPrice: 600, increments: [100] });
+    await db.sql(`update rounds set start_price_cents = 700 where id = $1`, [r]);
+    expect(await db.sql(`select 1 from realtime.sent where topic = $1`, [`sala:${e}`])).toHaveLength(0);
+  });
+
   it("room_state escolhe a rodada e traz o estado pessoal e o status do evento", async () => {
     const { eventId, roundId } = await openRound({ startPrice: 600, increments: [100] });
     const [a] = await Promise.all([db.user({ nickname: "Rui" })]);

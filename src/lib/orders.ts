@@ -103,14 +103,27 @@ export async function fetchOrder(sb: SupabaseClient, id: string): Promise<Order 
   return { ...order, items: items.get(order.lot_id) ?? [] };
 }
 
+/** Pedidos que ainda pedem ação (frete, Pix, comprovante, envio, entrega): sempre vêm todos. */
+const OPEN_STATUSES: OrderStatus[] = ["awaiting_shipping_quote", "awaiting_payment", "proof_sent", "paid", "shipped"];
+const DONE_STATUSES: OrderStatus[] = ["delivered", "cancelled"];
+
 export async function fetchOrders(sb: SupabaseClient, filter: { userId?: string; sellerId?: string; statuses?: OrderStatus[] }): Promise<Order[]> {
-  let q = sb.from("orders").select(`${ORDER_SELECT}, profiles(nickname, full_name, whatsapp)`).order("created_at", { ascending: false }).limit(200);
-  if (filter.userId) q = q.eq("user_id", filter.userId);
-  if (filter.sellerId) q = q.eq("seller_id", filter.sellerId);
-  if (filter.statuses) q = q.in("status", filter.statuses);
-  const { data, error } = await q;
-  if (error) throw error;
-  const rows = ((data ?? []) as unknown as (Row & { profiles: Order["buyer"] })[]).map((r) => ({ ...shape(r), buyer: r.profiles }));
+  const query = (statuses: OrderStatus[], limit: number) => {
+    let q = sb.from("orders").select(`${ORDER_SELECT}, profiles(nickname, full_name, whatsapp)`).in("status", statuses).order("created_at", { ascending: false }).limit(limit);
+    if (filter.userId) q = q.eq("user_id", filter.userId);
+    if (filter.sellerId) q = q.eq("seller_id", filter.sellerId);
+    return q;
+  };
+  // histórico (entregues e cancelados) limitado; os em aberto nunca ficam de fora do painel
+  const parts = filter.statuses ? [query(filter.statuses, 1000)] : [query(OPEN_STATUSES, 1000), query(DONE_STATUSES, 200)];
+  const results = await Promise.all(parts);
+  const data = results.flatMap(({ data, error }) => {
+    if (error) throw error;
+    return data ?? [];
+  });
+  const rows = (data as unknown as (Row & { profiles: Order["buyer"] })[])
+    .map((r) => ({ ...shape(r), buyer: r.profiles }))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
   const items = await itemsFor(sb, rows.map((r) => r.lot_id));
   return rows.map((r) => ({ ...r, items: items.get(r.lot_id) ?? [] }));
 }
