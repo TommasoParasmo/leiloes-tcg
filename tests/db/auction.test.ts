@@ -118,6 +118,8 @@ describe("Modo A — maior lance", () => {
     const second = await db.rpc(marina, "place_bid", [roundId, 900, key()]);
     expect(first.code).toBe("leading");
     expect(second.code).toBe("tie_not_leading");
+    // empate repetido travava a rodada: cada pessoa lança cada valor uma vez só
+    expect((await db.rpc(marina, "place_bid", [roundId, 900, key()])).code).toBe("amount_already_bid");
 
     const low = await db.rpc(marina, "place_bid", [roundId, 800, key()]);
     expect(low.code).toBe("amount_too_low");
@@ -137,6 +139,8 @@ describe("Modo A — maior lance", () => {
     expect((await db.rpc(a, "place_bid", [roundId, 600, key()])).code).toBe("leading");
     expect((await db.rpc(a, "place_bid", [roundId, 700, key()])).code).toBe("already_leading");
     expect((await db.rpc(b, "place_bid", [roundId, 600, key()])).code).toBe("amount_too_low");
+    // só os passos configurados: +3,47 enviado direto à API não passa
+    expect((await db.rpc(b, "place_bid", [roundId, 947, key()])).code).toBe("invalid_amount");
     expect((await db.rpc(b, "place_bid", [roundId, 800, key()])).code).toBe("leading");
 
     const notes = await db.sql(`select kind from notifications where user_id = $1`, [a]);
@@ -389,5 +393,64 @@ describe("Arremate, acumulação e WhatsApp", () => {
     await db.rpc(buyer, "buy_now", [r, key()]);
     const [msg] = await db.sql(`select status from whatsapp_messages where round_id = $1`, [r]);
     expect(msg.status).toBe("pending");
+  });
+});
+
+describe("Sala ao vivo", () => {
+  it("transmite só dados públicos a cada mudança, com versão crescente", async () => {
+    const { eventId, roundId } = await openRound({ startPrice: 600, increments: [100] });
+    const [a] = await Promise.all([db.user({ nickname: "Lia" })]);
+    await db.sql(`delete from realtime.sent`);
+    await db.rpc(a, "place_bid", [roundId, 600, key()]);
+    const sent = await db.sql<{ topic: string; event: string; payload: Record<string, unknown>; private: boolean }>(
+      `select topic, event, payload, private from realtime.sent order by id`,
+    );
+    expect(sent).toHaveLength(1);
+    const [m] = sent;
+    expect([m.topic, m.event, m.private]).toEqual([`sala:${eventId}`, "round", false]);
+    expect(m.payload).toMatchObject({ id: roundId, leading_nickname: "Lia", leading_is_me: false, my_best_bid_cents: null, my_block: "not_authenticated" });
+    expect(JSON.stringify(m.payload)).not.toContain(a);
+
+    const before = Number(m.payload.rev);
+    await db.rpc(admin, "admin_close_round", [roundId]);
+    const [last] = await db.sql<{ payload: { rev: number; status: string } }>(`select payload from realtime.sent order by id desc limit 1`);
+    expect(last.payload.status).toBe("closed");
+    expect(Number(last.payload.rev)).toBeGreaterThan(before);
+
+    await db.rpc(admin, "admin_finish_event", [eventId]);
+    const [ev] = await db.sql<{ event: string; payload: { event_status: string } }>(`select event, payload from realtime.sent order by id desc limit 1`);
+    expect([ev.event, ev.payload.event_status]).toEqual(["event", "finished"]);
+  });
+
+  it("rodada de evento em rascunho não vai para o canal público", async () => {
+    const e = await db.event(seller, 9000 + Math.floor(Math.random() * 90000), "draft");
+    await db.sql(`delete from realtime.sent`);
+    const r = await db.round(seller, e, { startPrice: 600, increments: [100] });
+    await db.sql(`update rounds set start_price_cents = 700 where id = $1`, [r]);
+    expect(await db.sql(`select 1 from realtime.sent where topic = $1`, [`sala:${e}`])).toHaveLength(0);
+  });
+
+  it("room_state escolhe a rodada e traz o estado pessoal e o status do evento", async () => {
+    const { eventId, roundId } = await openRound({ startPrice: 600, increments: [100] });
+    const [a] = await Promise.all([db.user({ nickname: "Rui" })]);
+    await db.rpc(a, "place_bid", [roundId, 600, key()]);
+    const mine = (await db.rpc(a, "room_state", [eventId])) as { event_status: string; state: Record<string, unknown> };
+    expect(mine.state).toMatchObject({ id: roundId, leading_is_me: true, my_nickname: "Rui", my_best_bid_cents: 600 });
+    expect(mine.event_status).toBe("live");
+    const visitor = (await db.rpc(null, "room_state", [eventId])) as { state: Record<string, unknown> };
+    expect(visitor.state).toMatchObject({ leading_is_me: false, my_block: "not_authenticated" });
+
+    const draft = await db.event(seller, eventNumber++, "draft");
+    expect(await db.rpc(a, "room_state", [draft])).toBeNull();
+    expect(await db.rpc(admin, "room_state", [draft])).toMatchObject({ event_status: "draft", state: null });
+  });
+
+  it("visitante e usuários não leem o id do líder", async () => {
+    const [row] = await db.sql<{ anon: boolean; auth: boolean; nick: boolean }>(
+      `select has_column_privilege('anon', 'public.rounds', 'leading_user_id', 'select') anon,
+              has_column_privilege('authenticated', 'public.rounds', 'leading_bid_id', 'select') auth,
+              has_column_privilege('anon', 'public.rounds', 'leading_nickname', 'select') nick`,
+    );
+    expect(row).toEqual({ anon: false, auth: false, nick: true });
   });
 });

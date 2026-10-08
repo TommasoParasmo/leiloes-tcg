@@ -32,6 +32,7 @@ export type AuctionCode =
   | "amount_too_low"
   | "amount_too_high"
   | "invalid_amount"
+  | "amount_already_bid"
   | "profile_required"
   | "blocked"
   | "must_close_lot"
@@ -122,6 +123,8 @@ export function auctionMessage(result: Pick<AuctionResult, "code" | "min_cents" 
         : "Valor acima do permitido";
     case "invalid_amount":
       return "Escolha uma das opções de lance";
+    case "amount_already_bid":
+      return "Você já deu esse lance. Escolha um valor maior";
     case "blocked":
       return "Sua conta está bloqueada para lances. Regularize suas pendências";
     case "must_close_lot":

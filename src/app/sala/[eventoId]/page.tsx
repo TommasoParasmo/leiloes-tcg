@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
-import { fetchCard, fetchEvent, fetchRoundState, pickRoomRoundId } from "@/lib/auction/data";
+import { fetchCard, fetchEvent, fetchRoomState } from "@/lib/auction/data";
 import { LiveRoom } from "@/components/room/live-room";
 import { TabBar } from "@/components/layout/tab-bar";
 import { PageLoading } from "@/components/ui/page-loading";
@@ -31,9 +31,9 @@ async function Sala({ params }: { params: Params }) {
   const event = await fetchEvent(sb, eventoId);
   if (!event) notFound();
 
-  const roundId = await pickRoomRoundId(sb, event.id);
-  const round = roundId ? await fetchRoundState(sb, roundId) : null;
+  const room = await fetchRoomState(sb, event.id);
+  const round = room?.state ?? null;
   const card = round ? await fetchCard(sb, round.card_id) : null;
 
-  return <LiveRoom event={event} initialRound={round} initialCard={card} />;
+  return <LiveRoom event={room ? { ...event, status: room.event_status } : event} initialRound={round} initialCard={card} />;
 }

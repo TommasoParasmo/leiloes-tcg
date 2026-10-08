@@ -14,14 +14,14 @@ export interface EventListItem {
 export async function listEvents(sb: SupabaseClient): Promise<EventListItem[]> {
   const { data, error } = await sb
     .from("events")
-    .select("id, number, title, status, starts_at, share_slug, rounds(count)")
+    .select("id, number, title, status, starts_at, share_slug, rounds(id)")
     .neq("status", "draft")
     .order("number", { ascending: false })
     .limit(50);
   if (error) throw error;
   return (data ?? []).map((e) => ({
     ...(e as unknown as Omit<EventListItem, "round_count">),
-    round_count: (e as unknown as { rounds: { count: number }[] }).rounds[0]?.count ?? 0,
+    round_count: (e as unknown as { rounds: { id: string }[] }).rounds.length,
   }));
 }
 

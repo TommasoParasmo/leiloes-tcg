@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { bidBoxTone, bidChoices, clockOffsetMs, formatCountdown, remainingMs, timerProgress } from "./logic";
+import { bidBoxTone, bidChoices, clockOffsetMs, formatCountdown, mergePublicState, nextClockSync, nextEventStatus, remainingMs, timerProgress } from "./logic";
 import type { RoundState } from "./types";
 
 const base: RoundState = {
   id: "r",
+  rev: 3,
+  event_status: "live",
   event_id: "e",
   card_id: "c",
   position: 7,
@@ -24,6 +26,7 @@ const base: RoundState = {
   current_amount_cents: null,
   leading_nickname: null,
   leading_is_me: false,
+  my_nickname: null,
   my_best_bid_cents: null,
   my_block: null,
   bid_count: 0,
@@ -94,5 +97,60 @@ describe("bidBoxTone", () => {
     expect(bidBoxTone({ ...base, my_best_bid_cents: 900 }, 30_000)).toBe("outbid");
     expect(bidBoxTone(base, 9_000)).toBe("ending");
     expect(bidBoxTone(base, 30_000)).toBe("neutral");
+  });
+});
+
+describe("nextClockSync", () => {
+  const server = "2026-10-08T20:40:30.000Z";
+  const t = Date.parse(server);
+  it("desconta metade da ida e volta", () => {
+    expect(nextClockSync(null, server, t - 1000, t - 800)).toEqual({ offsetMs: 900, rttMs: 200 });
+  });
+  it("ignora medição bem mais lenta que a melhor e mantém o relógio", () => {
+    const good = { offsetMs: 900, rttMs: 100 };
+    const slow = nextClockSync(good, server, t - 2000, t);
+    expect(slow.offsetMs).toBe(900);
+    expect(slow.rttMs).toBeCloseTo(110);
+    expect(nextClockSync(good, server, t - 100, t + 10).rttMs).toBe(110);
+  });
+});
+
+describe("mergePublicState", () => {
+  const mine = { ...base, my_nickname: "Lia", my_best_bid_cents: 600, current_amount_cents: 600, leading_nickname: "Lia", leading_is_me: true };
+  it("reconhece a liderança e o histórico pelo apelido", () => {
+    const pub: RoundState = {
+      ...base,
+      rev: 4,
+      my_block: "not_authenticated",
+      current_amount_cents: 700,
+      leading_nickname: "Rui",
+      recent_bids: [
+        { seq: 2, nickname: "Rui", amount_cents: 700, created_at: "", is_me: false },
+        { seq: 1, nickname: "Lia", amount_cents: 600, created_at: "", is_me: false },
+      ],
+    };
+    const merged = mergePublicState(mine, pub);
+    expect(merged).toMatchObject({ rev: 4, my_block: null, leading_is_me: false, my_best_bid_cents: 600, my_nickname: "Lia" });
+    expect(merged.recent_bids.map((b) => b.is_me)).toEqual([false, true]);
+  });
+  it("visitante nunca lidera", () => {
+    const pub = { ...base, leading_nickname: "Lia", current_amount_cents: 600 };
+    expect(mergePublicState({ ...base, my_block: "not_authenticated" }, pub).leading_is_me).toBe(false);
+  });
+  it("líder que trocou de apelido continua líder enquanto o lance não muda", () => {
+    // a leitura pessoal já traz o apelido novo; o público ainda mostra o antigo
+    const renamed = { ...mine, my_nickname: "Lia2" };
+    const pub: RoundState = { ...base, rev: 9, current_amount_cents: 600, leading_nickname: "Lia", recent_bids: [] };
+    expect(mergePublicState(renamed, pub).leading_is_me).toBe(true);
+    expect(mergePublicState(renamed, { ...pub, current_amount_cents: 700, leading_nickname: "Rafa" }).leading_is_me).toBe(false);
+  });
+});
+
+describe("nextEventStatus", () => {
+  it("não volta de encerrado para ao vivo", () => {
+    expect(nextEventStatus("finished", "live")).toBe("finished");
+    expect(nextEventStatus("live", "finished")).toBe("finished");
+    expect(nextEventStatus(null, "live")).toBe("live");
+    expect(nextEventStatus("scheduled", "live")).toBe("live");
   });
 });
