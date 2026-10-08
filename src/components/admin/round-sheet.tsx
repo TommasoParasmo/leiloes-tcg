@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { ChipButton, ChoiceChips, MultiChips, Stepper } from "@/components/ui/chips";
 import { Field, FormError } from "@/components/ui/field";
 import { Sheet } from "@/components/ui/sheet";
-import type { FreeCard, QueueRound } from "@/lib/admin-data";
+import { adminRpc, type FreeCard, type QueueRound } from "@/lib/admin-data";
+import { auctionMessage } from "@/lib/auction/codes";
 import { cn } from "@/lib/cn";
 import { formatAmountShort, parseBRL } from "@/lib/money";
 
@@ -38,9 +39,7 @@ const priceStep = (v: number, dir: 1 | -1) => {
  */
 export function RoundSheet({
   sb,
-  sellerId,
   eventId,
-  nextPosition,
   ordinal,
   cards,
   editing,
@@ -48,9 +47,7 @@ export function RoundSheet({
   onClose,
 }: {
   sb: SupabaseClient;
-  sellerId: string;
   eventId: string;
-  nextPosition: number;
   /** Número da rodada mostrado no título ("Rodada 3 · …"). */
   ordinal: number;
   cards: FreeCard[];
@@ -112,11 +109,31 @@ export function RoundSheet({
     if (Object.values(errs).some(Boolean)) return setFormError("Confira os campos destacados.");
     setPending(true);
     setFormError(null);
-    const { error } = editing
-      ? await sb.from("rounds").update(row).eq("id", editing.id).eq("status", "queued")
-      : await sb.from("rounds").insert({ ...row, seller_id: sellerId, event_id: eventId, position: nextPosition, card_id: card.id });
+    let failure: string | null = null;
+    try {
+      if (editing) {
+        const { error } = await sb.from("rounds").update(row).eq("id", editing.id).eq("status", "queued");
+        if (error) failure = "Não foi possível salvar. A rodada pode já ter sido aberta.";
+      } else {
+        // pelo servidor: trava evento e carta, confere se a carta segue livre e o evento aberto
+        const result = await adminRpc(sb, "admin_add_round", {
+          p_event_id: eventId,
+          p_card_id: card.id,
+          p_mode: row.mode,
+          p_start_price_cents: row.start_price_cents,
+          p_increments_cents: row.increments_cents,
+          p_bid_options_cents: row.bid_options_cents,
+          p_fixed_price_cents: row.fixed_price_cents,
+          p_close_mode: row.close_mode,
+          p_duration_seconds: row.duration_seconds,
+        });
+        if (!result.ok) failure = auctionMessage(result);
+      }
+    } catch {
+      failure = "Sem conexão com o servidor. Tente de novo.";
+    }
     setPending(false);
-    if (error) return setFormError(editing ? "Não foi possível salvar. A rodada pode já ter sido aberta." : "Não foi possível adicionar. Confira os valores e tente de novo.");
+    if (failure) return setFormError(failure);
     onSaved(editing ? "Rodada atualizada." : `${card.name} entrou na fila.`);
   }
 
@@ -280,7 +297,7 @@ export function RoundSheet({
             />
           )}
           {extraInput}
-          <ChoiceChips label="Encerramento" options={CLOSES} value={close} onChange={setClose} hint={close === "manual" ? "Você encerra pelo botão “Encerrar agora”." : undefined} />
+          <ChoiceChips label="Encerramento" options={CLOSES} value={close} onChange={setClose} hint={close === "manual" ? "Você encerra pelo botão “Encerrar agora”." : "Lance que assume a liderança nos últimos 5 s soma 10 s ao cronômetro."} />
           {mode === "options" && close === "timer" && (
             <Stepper label="Cronômetro" value={seconds} onChange={setSeconds} step={5} min={5} max={600} format={(s) => `${s} s`} parse={(s) => (/^\d+$/.test(s.trim()) ? Number(s) : null)} />
           )}

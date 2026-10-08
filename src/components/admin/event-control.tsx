@@ -201,9 +201,7 @@ export function EventControl({ event, sellerId }: { event: AdminEvent; sellerId:
             <RoundSheet
               key={sheet === "new" ? "new" : sheet.id}
               sb={sb}
-              sellerId={sellerId}
               eventId={event.id}
-              nextPosition={Math.max(0, ...rounds.map((r) => r.position)) + 1}
               ordinal={sheet === "new" ? rounds.length + 1 : rounds.findIndex((r) => r.id === sheet.id) + 1}
               cards={freeCards}
               editing={sheet === "new" ? undefined : sheet}

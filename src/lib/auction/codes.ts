@@ -49,6 +49,8 @@ export type AuctionCode =
   | "event_not_found"
   | "event_already_finished"
   | "published"
+  | "card_not_found"
+  | "card_unavailable"
   | "event_already_published"
   | "message_not_found"
   | "message_already_done";
@@ -117,6 +119,10 @@ export function auctionMessage(result: Pick<AuctionResult, "code" | "min_cents" 
       return "Evento não encontrado";
     case "event_already_finished":
       return "Esse evento já foi encerrado";
+    case "card_not_found":
+      return "Carta não encontrada";
+    case "card_unavailable":
+      return "Essa carta já está em outra rodada ou foi vendida";
     case "event_already_published":
       return "Esse evento já foi publicado";
     case "message_already_done":

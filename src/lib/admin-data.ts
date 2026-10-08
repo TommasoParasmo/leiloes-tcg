@@ -51,18 +51,22 @@ export async function fetchEventRounds(sb: SupabaseClient, eventId: string): Pro
   }));
 }
 
-/** Cartas do leiloeiro que ainda não estão em nenhum evento nem foram vendidas. */
+/**
+ * Cartas do leiloeiro fora de qualquer rodada viva e sem venda. Carta que encerrou sem
+ * lances ou foi cancelada volta para cá. O servidor confere de novo ao adicionar.
+ */
 export async function fetchFreeCards(sb: SupabaseClient, sellerId: string): Promise<FreeCard[]> {
   const { data, error } = await sb
     .from("cards")
-    .select("id, name, variant, card_number, card_photos(storage_path, position), rounds(status)")
+    .select("id, name, variant, card_number, card_photos(storage_path, position), rounds(status), wins(status)")
     .eq("seller_id", sellerId)
     .order("created_at", { ascending: false })
     .limit(300);
   if (error) throw error;
-  type Row = Omit<FreeCard, "photo"> & { card_photos: PhotoRow; rounds: { status: RoundStatus }[] };
+  type Row = Omit<FreeCard, "photo"> & { card_photos: PhotoRow; rounds: { status: RoundStatus }[]; wins: { status: string }[] };
+  const live: RoundStatus[] = ["queued", "open", "paused"];
   return ((data ?? []) as unknown as Row[])
-    .filter((c) => c.rounds.every((r) => r.status === "cancelled"))
+    .filter((c) => !c.rounds.some((r) => live.includes(r.status)) && !c.wins.some((w) => w.status !== "cancelled"))
     .map((c) => ({ id: c.id, name: c.name, variant: c.variant, card_number: c.card_number, photo: firstPhoto(sb, c.card_photos) }));
 }
 
