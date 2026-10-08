@@ -209,6 +209,16 @@ describe("Modo A — maior lance", () => {
 });
 
 describe("Permissões e participação", () => {
+  it("visitante lê o catálogo publicado e não vê dados pessoais", async () => {
+    const { eventId } = await openRound({ startPrice: 600, increments: [100] });
+    const read = (sql: string, params: unknown[] = []) => db.as(null, (c) => c.query(sql, params));
+    expect((await read(`select id from events where id = $1`, [eventId])).rows).toHaveLength(1);
+    expect((await read(`select id from rounds where event_id = $1`, [eventId])).rows).toHaveLength(1);
+    expect((await read(`select id from cards limit 1`)).rows).toHaveLength(1);
+    expect((await read(`select id from profiles`)).rows).toHaveLength(0);
+    expect((await read(`select id from addresses`)).rows).toHaveLength(0);
+  });
+
   it("visitante e comprador não controlam rodadas", async () => {
     const eventId = await db.event(seller, eventNumber++);
     const roundId = await db.round(seller, eventId);
@@ -233,6 +243,19 @@ describe("Permissões e participação", () => {
     expect((await db.rpc(blocked, "buy_now", [speed, key()])).code).toBe("blocked");
     const state = await db.rpc(null, "round_public_state", [roundId]);
     expect(state.status).toBe("open");
+    expect(state.my_block).toBe("not_authenticated");
+    expect((await db.rpc(blocked, "round_public_state", [roundId])).my_block).toBe("blocked");
+    const [ok] = await db.users(1);
+    expect((await db.rpc(ok, "round_public_state", [roundId])).my_block).toBeNull();
+  });
+
+  it("estado da rodada conta a carta dentro do evento mesmo com lacunas de posição", async () => {
+    const eventId = await db.event(seller, eventNumber++);
+    await db.round(seller, eventId, { position: 3 });
+    const second = await db.round(seller, eventId, { position: 10 });
+    await db.round(seller, eventId, { position: 20 });
+    const state = await db.rpc(null, "round_public_state", [second]);
+    expect([state.ordinal, state.round_total]).toEqual([2, 3]);
   });
 
   it("admin não cria rodada com evento ou carta de outro leiloeiro", async () => {

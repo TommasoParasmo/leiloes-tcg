@@ -10,8 +10,8 @@
   --color-line: #2B2D41;
   --color-text: #EEF0FF;
   --color-muted: #8A8EA8;
-  --color-accent: #7C5CFF;        /* primary actions, active tab, progress */
-  --color-accent-hover: #8F73FF;
+  --color-accent: #7050FA;        /* primary actions, active tab, progress (white text 4.98:1) */
+  --color-accent-hover: #6340EE;
   --color-accent-text: #A08BFF;   /* accent used as text on bg */
   --color-on-accent: #FFFFFF;
   --color-holo: #2FE6FF;          /* second stop of the holo gradient, highlights */
@@ -39,7 +39,7 @@
   --btn-bid-h: 64px;     /* bid buttons in the auction room */
   --btn-buy-h: 88px;     /* ARREMATAR button in speed mode */
 
-  --shadow-accent: 0 12px 34px -10px rgba(124, 92, 255, .7);
+  --shadow-accent: 0 12px 34px -10px rgba(112, 80, 250, .7);
   color-scheme: dark;
 }
 

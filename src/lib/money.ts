@@ -8,6 +8,11 @@ export function formatBRL(cents: number | bigint | string): string {
   return brl.format(value / 100).replace(/ /g, " ");
 }
 
+/** 1000 → "10", 50 → "0,50": valor sem "R$" e sem ",00" para botões compactos. */
+export function formatAmountShort(cents: number): string {
+  return formatBRL(cents).replace(/^R\$ /, "").replace(/,00$/, "");
+}
+
 /** Converte "9", "9,5", "9,50", "1.234,56" em centavos. Retorna null se inválido. */
 export function parseBRL(input: string): number | null {
   const clean = input.replace(/R\$\s?/i, "").trim().replace(/\./g, "").replace(",", ".");
