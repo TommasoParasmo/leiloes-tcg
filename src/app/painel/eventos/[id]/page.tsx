@@ -52,6 +52,8 @@ async function Evento({ params }: { params: PageProps<"/painel/eventos/[id]">["p
             </Pill>
           ) : event.status === "finished" ? (
             <Pill>Encerrado</Pill>
+          ) : event.status === "draft" ? (
+            <Pill>Rascunho</Pill>
           ) : (
             <Pill tone="acc">Agendado</Pill>
           )

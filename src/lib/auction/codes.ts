@@ -48,6 +48,8 @@ export type AuctionCode =
   | "queue_empty"
   | "event_not_found"
   | "event_already_finished"
+  | "published"
+  | "event_already_published"
   | "message_not_found"
   | "message_already_done";
 
@@ -115,6 +117,8 @@ export function auctionMessage(result: Pick<AuctionResult, "code" | "min_cents" 
       return "Evento não encontrado";
     case "event_already_finished":
       return "Esse evento já foi encerrado";
+    case "event_already_published":
+      return "Esse evento já foi publicado";
     case "message_already_done":
       return "Essa mensagem já foi marcada";
     case "invalid_request":

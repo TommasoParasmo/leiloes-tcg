@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { auctionMessage, type AuctionResult } from "@/lib/auction/codes";
@@ -12,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Kicker } from "@/components/ui/label";
 import { Pill } from "@/components/ui/pill";
 import { useCloseWhenExpired, useRoom, useTicker } from "@/components/room/use-room";
-import { AddRoundForm } from "./add-round-form";
+import { RoundSheet } from "./round-sheet";
 
 export interface AdminEvent {
   id: string;
@@ -28,6 +29,7 @@ export interface AdminEvent {
  * no banco, que confere permissão e estado antes de agir.
  */
 export function EventControl({ event, sellerId }: { event: AdminEvent; sellerId: string }) {
+  const router = useRouter();
   const [sb] = useState(createClient);
   const room = useRoom(sb, event.id, { round: null, card: null });
   const [rounds, setRounds] = useState<QueueRound[]>([]);
@@ -35,7 +37,8 @@ export function EventControl({ event, sellerId }: { event: AdminEvent; sellerId:
   const [eventStatus, setEventStatus] = useState(event.status);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: "danger" | "win"; text: string } | null>(null);
-  const [adding, setAdding] = useState(false);
+  // painel da rodada: "new" escolhe carta e configura; uma rodada da fila abre para editar
+  const [sheet, setSheet] = useState<"new" | QueueRound | null>(null);
 
   const reload = useCallback(async () => {
     const [r, c] = await Promise.all([fetchEventRounds(sb, event.id), fetchFreeCards(sb, sellerId)]);
@@ -129,6 +132,35 @@ export function EventControl({ event, sellerId }: { event: AdminEvent; sellerId:
           <p className="font-bold">Evento encerrado</p>
           <p className="mt-1 text-sm text-muted">{done.filter((r) => r.status === "closed").length} cartas vendidas. Confira a fila do WhatsApp.</p>
         </section>
+      ) : eventStatus === "draft" ? (
+        <section className="flex flex-col gap-2 rounded-md border border-line bg-surface p-4">
+          <p className="font-bold">Rascunho</p>
+          <p className="text-sm text-muted">Só você vê este evento. Publique para ele aparecer em “Próximos eventos” e o link de divulgação funcionar.</p>
+          <div className="mt-1 grid grid-cols-2 gap-2">
+            <Link href={`/sala/${event.id}`} className="flex min-h-[52px] items-center justify-center rounded-md border border-line text-sm font-bold">
+              Pré-visualizar
+            </Link>
+            <Button
+              className="min-h-[52px]"
+              disabled={!queued.length}
+              pending={busy === "publish"}
+              onClick={() =>
+                act(
+                  "publish",
+                  () => adminRpc(sb, "admin_publish_event", { p_event_id: event.id }),
+                  () => {
+                    setEventStatus("scheduled");
+                    setMessage({ tone: "win", text: "Evento publicado." });
+                    router.refresh();
+                  },
+                )
+              }
+            >
+              Publicar evento
+            </Button>
+          </div>
+          {!queued.length && <p className="text-xs text-muted">Adicione pelo menos uma carta à fila para publicar.</p>}
+        </section>
       ) : (
         <section className="flex flex-col gap-2">
           <Button
@@ -161,24 +193,27 @@ export function EventControl({ event, sellerId }: { event: AdminEvent; sellerId:
             <h2 id="fila" className="text-[11px] font-extrabold uppercase tracking-[.06em] text-muted">
               Fila do evento · {queued.length}
             </h2>
-            <button type="button" onClick={() => setAdding((v) => !v)} aria-expanded={adding} className="flex min-h-11 items-center px-2 text-sm font-bold text-accent-text">
-              {adding ? "Fechar" : "+ Adicionar carta"}
+            <button type="button" onClick={() => setSheet("new")} className="flex min-h-11 items-center px-2 text-sm font-bold text-accent-text">
+              + Adicionar carta
             </button>
           </div>
-          {adding && (
-            <div className="rounded-md border border-line bg-surface p-3">
-              <AddRoundForm
-                sb={sb}
-                sellerId={sellerId}
-                eventId={event.id}
-                nextPosition={Math.max(0, ...rounds.map((r) => r.position)) + 1}
-                cards={freeCards}
-                onAdded={() => {
-                  void reload();
-                  setMessage({ tone: "win", text: "Carta adicionada à fila." });
-                }}
-              />
-            </div>
+          {sheet && (
+            <RoundSheet
+              key={sheet === "new" ? "new" : sheet.id}
+              sb={sb}
+              sellerId={sellerId}
+              eventId={event.id}
+              nextPosition={Math.max(0, ...rounds.map((r) => r.position)) + 1}
+              ordinal={sheet === "new" ? rounds.length + 1 : rounds.findIndex((r) => r.id === sheet.id) + 1}
+              cards={freeCards}
+              editing={sheet === "new" ? undefined : sheet}
+              onClose={() => setSheet(null)}
+              onSaved={(text) => {
+                setSheet(null);
+                void reload();
+                setMessage({ tone: "win", text });
+              }}
+            />
           )}
           {queued.length ? (
             <ol className="flex flex-col gap-1.5">
@@ -191,10 +226,13 @@ export function EventControl({ event, sellerId }: { event: AdminEvent; sellerId:
                   ) : (
                     <span aria-hidden className="h-10 w-[30px] rounded-[4px] bg-surface-2" />
                   )}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold">{r.card.name}</p>
-                    <p className="truncate text-xs text-muted">{roundSummary(r)}</p>
-                  </div>
+                  <button type="button" onClick={() => setSheet(r)} disabled={!!busy} className="min-w-0 flex-1 text-left">
+                    <span className="block truncate text-sm font-bold">
+                      <span className="sr-only">Editar </span>
+                      {r.card.name}
+                    </span>
+                    <span className="block truncate text-xs text-muted">{roundSummary(r)}</span>
+                  </button>
                   <div className="flex">
                     <IconButton label={`Subir ${r.card.name}`} disabled={i === 0 || !!busy} onClick={() => move(i, -1)}>
                       ↑
@@ -210,7 +248,7 @@ export function EventControl({ event, sellerId }: { event: AdminEvent; sellerId:
               ))}
             </ol>
           ) : (
-            !adding && <p className="text-sm text-muted">Nenhuma carta na fila.</p>
+            <p className="text-sm text-muted">Nenhuma carta na fila.</p>
           )}
         </section>
       )}
@@ -233,28 +271,30 @@ export function EventControl({ event, sellerId }: { event: AdminEvent; sellerId:
         </section>
       )}
 
-      <section className="mt-2 flex flex-col gap-2 border-t border-line pt-4">
-        <div className="grid grid-cols-2 gap-2">
-          <Link href={`/sala/${event.id}`} className="flex min-h-12 items-center justify-center rounded-md bg-surface-2 text-sm font-bold">
-            Ver sala
-          </Link>
-          <a
-            href={whatsappShareUrl(`🔥 Leilão #${event.number} · ${event.title}\nEntre na sala: ${event.shareUrl}`)}
-            target="_blank"
-            rel="noreferrer"
-            className="flex min-h-12 items-center justify-center rounded-md bg-surface-2 text-sm font-bold"
-          >
-            Divulgar no WhatsApp
-          </a>
-        </div>
-        {!finished && !active && (
-          <FinishEvent
-            busy={busy === "finish"}
-            queued={queued.length}
-            onConfirm={() => act("finish", () => adminRpc(sb, "admin_finish_event", { p_event_id: event.id }), () => setEventStatus("finished"))}
-          />
-        )}
-      </section>
+      {eventStatus !== "draft" && (
+        <section className="mt-2 flex flex-col gap-2 border-t border-line pt-4">
+          <div className="grid grid-cols-2 gap-2">
+            <Link href={`/sala/${event.id}`} className="flex min-h-12 items-center justify-center rounded-md bg-surface-2 text-sm font-bold">
+              Ver sala
+            </Link>
+            <a
+              href={whatsappShareUrl(`🔥 Leilão #${event.number} · ${event.title}\nEntre na sala: ${event.shareUrl}`)}
+              target="_blank"
+              rel="noreferrer"
+              className="flex min-h-12 items-center justify-center rounded-md bg-surface-2 text-sm font-bold"
+            >
+              Divulgar no WhatsApp
+            </a>
+          </div>
+          {!finished && !active && (
+            <FinishEvent
+              busy={busy === "finish"}
+              queued={queued.length}
+              onConfirm={() => act("finish", () => adminRpc(sb, "admin_finish_event", { p_event_id: event.id }), () => setEventStatus("finished"))}
+            />
+          )}
+        </section>
+      )}
     </main>
   );
 }

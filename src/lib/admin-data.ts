@@ -72,12 +72,11 @@ export async function adminRpc(sb: SupabaseClient, fn: string, args: Record<stri
   return data as AuctionResult;
 }
 
-/** "Maior lance · +1/+2/+5 · 60 s" — resumo da configuração da rodada. */
+/** "Maior lance · R$ 5 · +1/+2/+5 · 20 s" — resumo da configuração da rodada. */
 export function roundSummary(r: Pick<QueueRound, "mode" | "increments_cents" | "bid_options_cents" | "fixed_price_cents" | "close_mode" | "duration_seconds" | "start_price_cents">): string {
   const brl = (c: number) => (c % 100 === 0 ? String(c / 100) : (c / 100).toFixed(2).replace(".", ","));
   if (r.mode === "speed") return `Rapidez · R$ ${brl(r.fixed_price_cents ?? 0)}`;
-  const how = r.bid_options_cents?.length
-    ? `opções ${r.bid_options_cents.map(brl).join("/")}`
-    : `de R$ ${brl(r.start_price_cents ?? 0)} · +${(r.increments_cents ?? []).map(brl).join("/+")}`;
-  return `Maior lance · ${how} · ${r.close_mode === "timer" ? `${r.duration_seconds} s` : "manual"}`;
+  const close = r.close_mode === "timer" ? `${r.duration_seconds} s` : "manual";
+  if (r.bid_options_cents?.length) return `Opções R$ ${r.bid_options_cents.map(brl).join("/")} · ${close}`;
+  return `Maior lance · R$ ${brl(r.start_price_cents ?? 0)} · +${(r.increments_cents ?? []).map(brl).join("/+")} · ${close}`;
 }

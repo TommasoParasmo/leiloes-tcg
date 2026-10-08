@@ -23,10 +23,24 @@ describe("painel do leiloeiro", () => {
     const a = await db.rpc(admin, "admin_create_event", ["Noite das Holos", "2026-10-20T23:00:00Z"]);
     const b = await db.rpc(admin, "admin_create_event", ["Mix TCG", null]);
     expect(a).toMatchObject({ ok: true, number: 1 });
+    const [st] = await db.sql<{ status: string }>(`select status from events where id = $1`, [a.id]);
+    expect(st.status).toBe("draft");
     expect(b).toMatchObject({ ok: true, number: 2 });
     expect((await db.rpc(buyer, "admin_create_event", ["x", null])).code).toBe("forbidden");
     expect((await db.rpc(admin, "admin_create_event", ["  ", null])).code).toBe("invalid_request");
     await expect(db.rpc(null, "admin_create_event", ["x", null])).rejects.toThrow(/permission denied/);
+  });
+
+  it("publica o rascunho só com carta na fila", async () => {
+    const { id } = (await db.rpc(admin, "admin_create_event", ["Rascunho", null])) as { id: string };
+    expect((await db.rpc(admin, "admin_publish_event", [id])).code).toBe("queue_empty");
+    await db.round(seller, id, { position: 1 });
+    expect((await db.rpc(buyer, "admin_publish_event", [id])).code).toBe("forbidden");
+    expect((await db.rpc(admin, "admin_publish_event", [id])).code).toBe("published");
+    expect((await db.rpc(admin, "admin_publish_event", [id])).code).toBe("event_already_published");
+    const [ev] = await db.sql<{ status: string }>(`select status from events where id = $1`, [id]);
+    expect(ev.status).toBe("scheduled");
+    await expect(db.rpc(null, "admin_publish_event", [id])).rejects.toThrow(/permission denied/);
   });
 
   it("reordena só as rodadas da fila, depois das que já abriram", async () => {
