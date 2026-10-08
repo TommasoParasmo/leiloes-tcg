@@ -64,6 +64,7 @@ export function CardForm({ sellerId }: { sellerId: string }) {
   const [saved, setSaved] = useState<string | null>(null);
   const [pending, setPending] = useState<"stay" | "leave" | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const cameraInput = useRef<HTMLInputElement>(null);
   const nameInput = useRef<HTMLDivElement>(null);
 
   // libera as prévias quando a tela fecha
@@ -102,6 +103,7 @@ export function CardForm({ sellerId }: { sellerId: string }) {
     setErrors((s) => ({ ...s, photos: undefined }));
     setSaved(null);
     if (fileInput.current) fileInput.current.value = "";
+    if (cameraInput.current) cameraInput.current.value = "";
   }
 
   function removePhoto(i: number) {
@@ -259,12 +261,33 @@ export function CardForm({ sellerId }: { sellerId: string }) {
             </div>
           ))}
           {photos.length < MAX_PHOTOS && (
+            // celular: abre direto a câmera traseira (no computador o atributo capture é ignorado, por isso o botão só aparece em tela de toque)
+            <label className="hidden aspect-[63/88] cursor-pointer place-items-center rounded-sm border-2 border-accent/60 bg-accent/10 text-center text-xs font-bold text-accent-text pointer-coarse:grid has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent">
+              <span>
+                <svg aria-hidden viewBox="0 0 24 24" className="mx-auto mb-1 size-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
+                  <circle cx="12" cy="13.5" r="3.5" />
+                </svg>
+                Câmera
+              </span>
+              <input
+                ref={cameraInput}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="sr-only"
+                onChange={(e) => addPhotos(e.target.files)}
+                aria-describedby={errors.photos ? "fotos-erro" : "fotos-dica"}
+              />
+            </label>
+          )}
+          {photos.length < MAX_PHOTOS && (
             <label className="grid aspect-[63/88] cursor-pointer place-items-center rounded-sm border-2 border-dashed border-line text-center text-xs font-bold text-muted has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent">
               <span>
                 <span aria-hidden className="block text-2xl">
                   +
                 </span>
-                Foto
+                Galeria
               </span>
               <input
                 ref={fileInput}
@@ -284,7 +307,7 @@ export function CardForm({ sellerId }: { sellerId: string }) {
           </p>
         ) : (
           <p id="fotos-dica" className="text-xs text-muted">
-            Frente, verso e detalhes. Toque numa foto para virar a capa.
+            Tire pela câmera ou escolha da galeria: frente, verso e detalhes. Toque numa foto para virar a capa.
           </p>
         )}
       </section>
