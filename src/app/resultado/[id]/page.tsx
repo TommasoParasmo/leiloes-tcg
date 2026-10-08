@@ -9,11 +9,16 @@ import { CardTitle } from "@/components/room/card-title";
 import { LostCard } from "@/components/room/result-cards";
 import { PageLoading } from "@/components/ui/page-loading";
 import { fetchCard, fetchEvent, fetchRoundState } from "@/lib/auction/data";
+import { resultPreview } from "@/lib/share-preview";
 import { createClient } from "@/lib/supabase/server";
 
-export const metadata: Metadata = { title: "Resultado · Bate Carta" };
-
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function generateMetadata({ params }: PageProps<"/resultado/[id]">): Promise<Metadata> {
+  const { id } = await params;
+  if (!UUID.test(id)) return { title: "Resultado · Bate Carta" };
+  return resultPreview(await createClient(), id);
+}
 
 /** Link da mensagem do grupo: prova pública de quem arrematou, por quanto e quando. */
 export default function ResultadoPage({ params }: PageProps<"/resultado/[id]">) {
