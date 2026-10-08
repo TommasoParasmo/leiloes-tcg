@@ -14,6 +14,7 @@ import { Kicker } from "@/components/ui/label";
 import { Pill } from "@/components/ui/pill";
 import { Sheet } from "@/components/ui/sheet";
 import { useCloseWhenExpired, useRoom, useTicker } from "@/components/room/use-room";
+import { EventCover } from "./event-cover";
 import { RoundSheet } from "./round-sheet";
 
 export interface AdminEvent {
@@ -22,6 +23,7 @@ export interface AdminEvent {
   title: string;
   status: "draft" | "scheduled" | "live" | "finished" | "cancelled";
   shareUrl: string;
+  coverUrl: string | null;
 }
 
 /**
@@ -315,6 +317,8 @@ export function EventControl({ event, sellerId, newCardId }: { event: AdminEvent
           </ul>
         </section>
       )}
+
+      {!finished && <EventCover sb={sb} eventId={event.id} sellerId={sellerId} initialUrl={event.coverUrl} />}
 
       {eventStatus !== "draft" && (
         <section className="mt-2 flex flex-col gap-2 border-t border-line pt-4">

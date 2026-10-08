@@ -7,6 +7,7 @@ import { PageLoading } from "@/components/ui/page-loading";
 import { Pill } from "@/components/ui/pill";
 import { requireAdmin } from "@/lib/admin";
 import { publicEnv } from "@/lib/env";
+import { eventCoverUrl } from "@/lib/events";
 
 export const metadata: Metadata = { title: "Controle do evento · Bate Carta" };
 
@@ -33,7 +34,7 @@ async function Evento({ params, searchParams }: Pick<PageProps<"/painel/eventos/
   const newCardId = typeof carta === "string" && UUID.test(carta) ? carta : undefined;
   if (!UUID.test(id)) notFound();
   const { sb, sellerId } = await requireAdmin(`/painel/eventos/${id}`);
-  const { data } = await sb.from("events").select("id, number, title, status, share_slug, seller_id").eq("id", id).maybeSingle();
+  const { data } = await sb.from("events").select("id, number, title, status, share_slug, seller_id, cover_path").eq("id", id).maybeSingle();
   if (!data || data.seller_id !== sellerId) notFound();
   const event: AdminEvent = {
     id: data.id,
@@ -41,6 +42,7 @@ async function Evento({ params, searchParams }: Pick<PageProps<"/painel/eventos/
     title: data.title,
     status: data.status,
     shareUrl: `${publicEnv.siteUrl}/e/${data.share_slug}`,
+    coverUrl: eventCoverUrl(sb, data.cover_path),
   };
   return (
     <>
