@@ -43,7 +43,8 @@ export function parsePick(json: unknown): CardPick | null {
 }
 
 export async function searchCards(name: string, lang: TcgdexLang, signal?: AbortSignal): Promise<CardHit[]> {
-  const res = await fetch(`${API}/${lang}/cards?name=${encodeURIComponent(name)}`, { signal });
+  // a API não pagina sozinha: sem isso, um nome curto baixa centenas de cartas no celular
+  const res = await fetch(`${API}/${lang}/cards?name=${encodeURIComponent(name)}&pagination:page=1&pagination:itemsPerPage=12`, { signal });
   if (!res.ok) return [];
   return parseHits(await res.json());
 }

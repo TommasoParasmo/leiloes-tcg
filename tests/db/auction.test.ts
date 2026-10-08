@@ -153,6 +153,12 @@ describe("Modo A — maior lance", () => {
       [b.roundId],
     );
     expect(win).toEqual({ nickname: "Bia", amount_cents: 1300 });
+
+    // quem já lidera ainda pode ir no 13 e arrematar; um valor menor continua barrado
+    const c = await openRound({ options: [1000, 1100, 1200, 1300], fixedPrice: 1300 });
+    expect((await db.rpc(tom, "place_bid", [c.roundId, 1100, key()])).code).toBe("leading");
+    expect((await db.rpc(tom, "place_bid", [c.roundId, 1200, key()])).code).toBe("already_leading");
+    expect((await db.rpc(tom, "place_bid", [c.roundId, 1300, key()])).code).toBe("won");
   });
 
   it("rapidez com opções: 30 toques simultâneos no maior valor geram um só vencedor", async () => {
@@ -168,6 +174,8 @@ describe("Modo A — maior lance", () => {
     const eventId = await db.event(seller, eventNumber++);
     await expect(db.round(seller, eventId, { options: [1000, 1300], fixedPrice: 1200 })).rejects.toThrow(/instant_price_needs_options/);
     await expect(db.round(seller, eventId, { fixedPrice: 1200 })).rejects.toThrow(/instant_price_needs_options/);
+    await expect(db.round(seller, eventId, { options: [1000, 1100, 1200, 1300, 1400], fixedPrice: 1400 })).rejects.toThrow(/instant_price_needs_options/);
+    await expect(db.round(seller, eventId, { options: [], fixedPrice: 1200 })).rejects.toThrow(/instant_price_needs_options/);
   });
 
   it("valida limites de valor e não deixa o líder cobrir o próprio lance", async () => {

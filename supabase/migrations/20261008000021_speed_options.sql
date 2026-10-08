@@ -10,7 +10,8 @@ language sql immutable set search_path = public as $$ select max(x) from unnest(
 alter table public.rounds drop constraint if exists instant_price_needs_options;
 alter table public.rounds add constraint instant_price_needs_options check (
   mode = 'speed' or fixed_price_cents is null
-  or (bid_options_cents is not null and fixed_price_cents = public.app_max_cents(bid_options_cents))
+  or (bid_options_cents is not null and cardinality(bid_options_cents) between 2 and 4
+      and fixed_price_cents = public.app_max_cents(bid_options_cents))
 );
 
 create or replace function public.place_bid(p_round_id uuid, p_amount_cents bigint, p_idempotency_key text)
@@ -75,7 +76,8 @@ begin
     return jsonb_build_object('ok', false, 'code', v_block);
   end if;
 
-  if r.leading_user_id = v_uid then
+  -- quem lidera não cobre o próprio lance, exceto para arrematar na hora pelo maior valor
+  if r.leading_user_id = v_uid and not (r.fixed_price_cents is not null and p_amount_cents >= r.fixed_price_cents) then
     return jsonb_build_object('ok', false, 'code', 'already_leading', 'state', public.round_public_state(r.id));
   end if;
 
