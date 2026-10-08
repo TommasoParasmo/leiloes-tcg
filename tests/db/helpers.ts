@@ -15,6 +15,9 @@ export class TestDb {
     await admin.query(`create database ${name} template ${TEMPLATE_DB}`);
     await admin.end();
     const pool = new Pool({ connectionString: adminUrl(name), max: 80 });
+    // O `drop database ... with (force)` do destroy() derruba conexões que ainda estão
+    // fechando; sem este handler o pg emite um erro não tratado (57P01) e o Vitest falha.
+    pool.on("error", () => {});
     return new TestDb(name, pool);
   }
 
