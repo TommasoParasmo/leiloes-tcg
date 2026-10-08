@@ -15,7 +15,7 @@ alter table public.rounds add column if not exists rev bigint not null default 0
 
 create or replace function public.app_bump_round_rev()
 returns trigger
-language plpgsql
+language plpgsql set search_path = public
 as $$
 begin
   new.rev := old.rev + 1;
@@ -120,7 +120,9 @@ returns trigger
 language plpgsql security definer set search_path = public
 as $$
 begin
-  if to_regprocedure('realtime.send(jsonb,text,text,boolean)') is not null then
+  -- canal público: rodada de evento em rascunho não vai ao ar (só o admin vê, via room_state)
+  if to_regprocedure('realtime.send(jsonb,text,text,boolean)') is not null
+     and exists (select 1 from public.events where id = new.event_id and status <> 'draft') then
     begin
       perform realtime.send(public.app_round_state(new.id, null), 'round', 'sala:' || new.event_id, false);
     exception when others then
@@ -140,7 +142,7 @@ returns trigger
 language plpgsql security definer set search_path = public
 as $$
 begin
-  if new.status is distinct from old.status and to_regprocedure('realtime.send(jsonb,text,text,boolean)') is not null then
+  if new.status is distinct from old.status and old.status <> 'draft' and to_regprocedure('realtime.send(jsonb,text,text,boolean)') is not null then
     begin
       perform realtime.send(jsonb_build_object('event_status', new.status), 'event', 'sala:' || new.id, false);
     exception when others then
