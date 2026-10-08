@@ -53,7 +53,17 @@ alter table public.penalties add column if not exists order_id uuid unique refer
 -- ---------------------------------------------------------------------------
 -- Cadastro único: WhatsApp e CPF não se repetem entre contas.
 -- ---------------------------------------------------------------------------
-create unique index if not exists profiles_whatsapp_unique on public.profiles ((regexp_replace(whatsapp, '[^0-9]', '', 'g')));
+-- Mesmo número com ou sem o 55 (+55 21 99999-0001 e 21 99999-0001) conta como um só.
+create or replace function public.app_norm_whatsapp(p_whatsapp text)
+returns text
+language sql immutable set search_path = public
+as $$
+  select case when d ~ '^55[0-9]{10,11}$' then substr(d, 3) else d end
+    from (select regexp_replace(coalesce(p_whatsapp, ''), '[^0-9]', '', 'g') as d) x;
+$$;
+
+drop index if exists public.profiles_whatsapp_unique;
+create unique index profiles_whatsapp_unique on public.profiles ((public.app_norm_whatsapp(whatsapp)));
 create unique index if not exists profiles_cpf_unique on public.profiles (cpf) where cpf is not null;
 
 -- CPF com dígitos verificadores válidos (11 dígitos, sem todos iguais).
@@ -82,6 +92,13 @@ begin
 end;
 $$;
 
+-- Todo CPF gravado é válido, venha do cadastro (metadata) ou de onde for.
+alter table public.profiles drop constraint if exists profiles_cpf_valid;
+alter table public.profiles add constraint profiles_cpf_valid check (cpf is null or public.app_valid_cpf(cpf));
+
+-- Perfil só nasce pelo gatilho do cadastro (handle_new_user): ninguém insere a própria linha.
+revoke insert on public.profiles from anon, authenticated;
+
 -- WhatsApp livre? (o cadastro avisa antes de enviar)
 create or replace function public.whatsapp_available(p_whatsapp text)
 returns boolean
@@ -89,7 +106,7 @@ language sql stable security definer set search_path = public
 as $$
   select length(regexp_replace(coalesce(p_whatsapp, ''), '[^0-9]', '', 'g')) between 10 and 15
      and not exists (select 1 from public.profiles
-                      where regexp_replace(whatsapp, '[^0-9]', '', 'g') = regexp_replace(p_whatsapp, '[^0-9]', '', 'g'));
+                      where public.app_norm_whatsapp(whatsapp) = public.app_norm_whatsapp(p_whatsapp));
 $$;
 revoke execute on function public.whatsapp_available(text) from public;
 grant execute on function public.whatsapp_available(text) to anon, authenticated;
@@ -412,8 +429,10 @@ begin
   if o.status <> 'proof_sent' then return jsonb_build_object('ok', false, 'code', 'order_wrong_status'); end if;
   if coalesce(length(trim(p_reason)), 0) not between 1 and 300 then return jsonb_build_object('ok', false, 'code', 'reason_required'); end if;
   update public.payments set status = 'rejected' where order_id = o.id and status = 'proof_sent';
+  -- comprovante recusado: pelo menos 24h para reenviar antes do cartão amarelo
+  o.due_at := greatest(o.due_at, clock_timestamp() + interval '24 hours');
   insert into public.payments (seller_id, order_id, amount_cents, due_at) values (o.seller_id, o.id, o.total_cents, o.due_at);
-  update public.orders set status = 'awaiting_payment', notes = trim(p_reason) where id = o.id;
+  update public.orders set status = 'awaiting_payment', notes = trim(p_reason), due_at = o.due_at where id = o.id;
   perform public.app_audit(o.seller_id, 'payment.reject', 'order', o.id, jsonb_build_object('reason', trim(p_reason)));
   perform public.app_notify(o.user_id, 'payment_rejected', 'Comprovante não confirmado', trim(p_reason), jsonb_build_object('order_id', o.id));
   return jsonb_build_object('ok', true, 'code', 'rejected');
@@ -538,7 +557,10 @@ as $$
 $$;
 
 revoke execute on function public.app_lot_due_at(public.lots) from public, anon, authenticated;
-revoke execute on function public.app_valid_cpf(text) from public, anon, authenticated;
+-- a restrição de CPF roda com o papel de quem altera o perfil
+grant execute on function public.app_valid_cpf(text) to anon, authenticated;
+revoke execute on function public.app_norm_whatsapp(text) from public;
+grant execute on function public.app_norm_whatsapp(text) to anon, authenticated;
 revoke execute on function public.app_close_lot(uuid, text) from public, anon, authenticated;
 revoke execute on function public.app_process_lots() from public, anon, authenticated;
 revoke execute on function public.close_my_lot(uuid) from public, anon;
