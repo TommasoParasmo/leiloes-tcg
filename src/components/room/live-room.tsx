@@ -200,8 +200,8 @@ function BidControls({
   busy: boolean;
   onBid: (amount: number) => void;
 }) {
-  if (block === "not_authenticated") return <LoginToBid />;
-  if (block) return <BlockedNotice reason={block} />;
+  if (block === "not_authenticated") return <LoginToBid returnTo={`/sala/${round.event_id}`} />;
+  if (block) return <BlockedNotice reason={block} returnTo={`/sala/${round.event_id}`} />;
   const fixed = !!round.bid_options_cents?.length;
   return (
     <div className="flex flex-col gap-2">
@@ -214,21 +214,22 @@ function BidControls({
 }
 
 function SpeedControls({ round, block, pending, onBuy }: { round: RoundState; block: RoundState["my_block"]; pending: boolean; onBuy: () => void }) {
-  if (block === "not_authenticated") return <LoginToBid />;
-  if (block) return <BlockedNotice reason={block} />;
+  if (block === "not_authenticated") return <LoginToBid returnTo={`/sala/${round.event_id}`} />;
+  if (block) return <BlockedNotice reason={block} returnTo={`/sala/${round.event_id}`} />;
   const state = pending ? "pending" : round.status === "open" ? "ready" : "waiting";
   return <BuyButton state={state} priceCents={round.fixed_price_cents ?? 0} onBuy={onBuy} />;
 }
 
-function LoginToBid() {
+function LoginToBid({ returnTo }: { returnTo: string }) {
+  const next = `?next=${encodeURIComponent(returnTo)}`;
   return (
     <section className="rounded-md border border-line bg-surface p-4 text-center">
       <p className="font-bold">Visitantes assistem. Para dar lance, entre na sua conta.</p>
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <Link href="/entrar" className="flex min-h-12 items-center justify-center rounded-md bg-accent font-bold text-on-accent">
+        <Link href={`/entrar${next}`} className="flex min-h-12 items-center justify-center rounded-md bg-accent font-bold text-on-accent">
           Entrar
         </Link>
-        <Link href="/cadastro" className="flex min-h-12 items-center justify-center rounded-md bg-surface-2 font-bold">
+        <Link href={`/cadastro${next}`} className="flex min-h-12 items-center justify-center rounded-md bg-surface-2 font-bold">
           Criar conta
         </Link>
       </div>

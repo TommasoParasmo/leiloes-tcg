@@ -66,3 +66,24 @@ export function parseViaCep(json: unknown): CepAddress | null {
   if (!j || j.erro || !j.localidade || !j.uf) return null;
   return { street: j.logradouro ?? "", district: j.bairro ?? "", city: j.localidade, state: j.uf };
 }
+
+/** CPF com dígitos verificadores (mesma regra de app_valid_cpf no banco). */
+export function validateCpf(input: string): string | null {
+  const d = onlyDigits(input);
+  if (d.length !== 11) return "O CPF tem 11 números";
+  if (/^(\d)\1{10}$/.test(d)) return "CPF inválido";
+  const n = d.split("").map(Number);
+  for (const len of [9, 10]) {
+    const sum = n.slice(0, len).reduce((acc, x, i) => acc + x * (len + 1 - i), 0);
+    if (((sum * 10) % 11) % 10 !== n[len]) return "CPF inválido. Confira os números";
+  }
+  return null;
+}
+
+export function formatCpf(input: string): string {
+  const d = onlyDigits(input).slice(0, 11);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
+  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+}

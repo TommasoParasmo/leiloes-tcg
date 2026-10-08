@@ -32,3 +32,14 @@ describe("validação do cadastro", () => {
     expect(v.parseViaCep({ erro: "true" })).toBeNull();
   });
 });
+
+describe("CPF", () => {
+  it("aceita CPF válido com ou sem pontuação e recusa dígitos errados", () => {
+    const { validateCpf, formatCpf } = v;
+    expect(validateCpf("529.982.247-25")).toBeNull();
+    expect(validateCpf("52998224726")).toMatch(/inválido/);
+    expect(validateCpf("111.111.111-11")).toMatch(/inválido/);
+    expect(validateCpf("123")).toMatch(/11 números/);
+    expect(formatCpf("52998224725")).toBe("529.982.247-25");
+  });
+});

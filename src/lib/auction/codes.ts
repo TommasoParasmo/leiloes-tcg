@@ -49,6 +49,29 @@ export type AuctionCode =
   | "event_not_found"
   | "event_already_finished"
   | "published"
+  | "cpf_required"
+  | "invalid_cpf"
+  | "cpf_taken"
+  | "cpf_already_set"
+  | "saved"
+  | "lot_closed"
+  | "lot_not_found"
+  | "lot_already_closed"
+  | "address_required"
+  | "quoted"
+  | "proof_sent"
+  | "confirmed"
+  | "rejected"
+  | "cancelled"
+  | "removed"
+  | "unblocked"
+  | "order_not_found"
+  | "order_wrong_status"
+  | "penalty_not_found"
+  | "penalty_already_removed"
+  | "justification_required"
+  | "user_not_found"
+  | "user_not_blocked"
   | "card_not_found"
   | "card_unavailable"
   | "event_already_published"
@@ -119,6 +142,34 @@ export function auctionMessage(result: Pick<AuctionResult, "code" | "min_cents" 
       return "Evento não encontrado";
     case "event_already_finished":
       return "Esse evento já foi encerrado";
+    case "cpf_required":
+      return "Informe seu CPF para dar lances";
+    case "invalid_cpf":
+      return "CPF inválido. Confira os números";
+    case "cpf_taken":
+      return "Esse CPF já tem conta. Entre com ela ou fale com o leiloeiro";
+    case "cpf_already_set":
+      return "Seu CPF já está cadastrado";
+    case "lot_not_found":
+      return "Lote não encontrado";
+    case "lot_already_closed":
+      return "Esse lote já foi fechado";
+    case "address_required":
+      return "Cadastre um endereço de entrega antes de fechar o lote";
+    case "order_not_found":
+      return "Pedido não encontrado";
+    case "order_wrong_status":
+      return "O pedido mudou enquanto você olhava. Recarregue a página";
+    case "penalty_not_found":
+      return "Advertência não encontrada";
+    case "penalty_already_removed":
+      return "Essa advertência já foi retirada";
+    case "justification_required":
+      return "Escreva a justificativa (mínimo 5 letras)";
+    case "user_not_found":
+      return "Comprador não encontrado";
+    case "user_not_blocked":
+      return "Esse comprador não está bloqueado";
     case "card_not_found":
       return "Carta não encontrada";
     case "card_unavailable":

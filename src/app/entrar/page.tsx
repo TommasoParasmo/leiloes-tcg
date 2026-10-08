@@ -30,7 +30,7 @@ async function Entrar({ searchParams }: { searchParams: Search }) {
         <LoginForm next={safeNext(next)} />
         <p className="text-center text-sm text-muted">
           Ainda não tem conta?{" "}
-          <Link href="/cadastro" className="font-bold text-accent-text">
+          <Link href={next ? `/cadastro?next=${encodeURIComponent(safeNext(next))}` : "/cadastro"} className="font-bold text-accent-text">
             Criar conta
           </Link>
         </p>

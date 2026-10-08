@@ -2,6 +2,19 @@ import { randomUUID } from "node:crypto";
 import { Client, Pool, type PoolClient } from "pg";
 import { adminUrl, TEMPLATE_DB } from "./config";
 
+let phoneSeq = 0;
+const uniqueWhatsapp = () => `119${String(process.pid % 1000).padStart(3, "0")}${String(phoneSeq++).padStart(5, "0")}`;
+
+/** CPF aleatório com dígitos verificadores válidos. */
+export function randomCpf(): string {
+  const d = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10));
+  for (const len of [9, 10]) {
+    const sum = d.slice(0, len).reduce((acc, n, i) => acc + n * (len + 1 - i), 0);
+    d.push(((sum * 10) % 11) % 10);
+  }
+  return d.join("");
+}
+
 export type Json = Record<string, unknown> & { ok?: boolean; code?: string };
 
 /** Banco isolado por arquivo de teste, clonado do template com as migrações. */
@@ -72,13 +85,22 @@ export class TestDb {
     return s.id;
   }
 
-  async user(opts: { nickname?: string; role?: "buyer" | "admin"; sellerId?: string; status?: "active" | "blocked" } = {}) {
+  async user(opts: { nickname?: string; role?: "buyer" | "admin"; sellerId?: string; status?: "active" | "blocked"; cpf?: string | null } = {}) {
     const id = randomUUID();
     await this.sql(`insert into auth.users (id, email) values ($1, $2)`, [id, `${id}@teste.dev`]);
     await this.sql(
-      `insert into profiles (id, full_name, nickname, whatsapp, role, admin_seller_id, status)
-       values ($1, $2, $3, '11999990000', $4, $5, $6)`,
-      [id, "Pessoa Teste", opts.nickname ?? `u${id.slice(0, 8)}`, opts.role ?? "buyer", opts.sellerId ?? null, opts.status ?? "active"],
+      `insert into profiles (id, full_name, nickname, whatsapp, cpf, role, admin_seller_id, status)
+       values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        id,
+        "Pessoa Teste",
+        opts.nickname ?? `u${id.slice(0, 8)}`,
+        uniqueWhatsapp(),
+        opts.cpf === undefined ? randomCpf() : opts.cpf,
+        opts.role ?? "buyer",
+        opts.sellerId ?? null,
+        opts.status ?? "active",
+      ],
     );
     return id;
   }

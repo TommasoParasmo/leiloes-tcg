@@ -2,22 +2,32 @@ import Link from "next/link";
 import { cn } from "@/lib/cn";
 
 /** Substitui os botões de lance para quem está bloqueado ou precisa fechar o lote. */
-export function BlockedNotice({ reason }: { reason: "blocked" | "must_close_lot" | "profile_required" }) {
+export function BlockedNotice({ reason, returnTo }: { reason: "blocked" | "must_close_lot" | "profile_required" | "cpf_required"; returnTo?: string }) {
+  const back = returnTo ? `?next=${encodeURIComponent(returnTo)}` : "";
   const text = {
     blocked: {
       title: "Lances bloqueados",
       body: "Você recebeu 2 cartões amarelos por pagamentos em atraso. Regularize suas pendências para voltar a participar.",
       cta: "Ver pendências",
+      href: "/conta/pedidos",
     },
     must_close_lot: {
       title: "Feche seu lote para participar",
-      body: "Você já acumulou cartas por 2 leilões. Pague e peça o envio para voltar a dar lances.",
+      body: "Você já acumulou cartas por 2 leilões. Feche o lote (pagamento e envio) para voltar a dar lances.",
       cta: "Fechar lote",
+      href: "/conta/lote",
     },
     profile_required: {
       title: "Complete seu cadastro",
       body: "Precisamos do seu apelido, WhatsApp e endereço antes do primeiro lance.",
       cta: "Completar cadastro",
+      href: `/conta/cadastro${back}`,
+    },
+    cpf_required: {
+      title: "Falta seu CPF",
+      body: "Para dar lances, informe seu CPF uma vez. Ele identifica você no pedido e no envio.",
+      cta: "Completar cadastro",
+      href: `/conta/cadastro${back}`,
     },
   }[reason];
   return (
@@ -32,7 +42,7 @@ export function BlockedNotice({ reason }: { reason: "blocked" | "must_close_lot"
         <p className="font-bold text-danger">{text.title}</p>
       </div>
       <p className="mt-2 text-sm text-muted">{text.body}</p>
-      <Link href="/conta" className="mt-3 inline-flex min-h-12 items-center rounded-md bg-surface-2 px-4 font-bold">
+      <Link href={text.href} className="mt-3 inline-flex min-h-12 items-center rounded-md bg-surface-2 px-4 font-bold">
         {text.cta}
       </Link>
     </section>
