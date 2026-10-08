@@ -48,7 +48,7 @@ async function HomeContent() {
           <section className="relative overflow-hidden rounded-lg border border-line">
             <Image src="/brand/hero.jpg" alt="" fill priority sizes="(max-width: 448px) 100vw, 448px" className="object-cover" />
             <span aria-hidden className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent,rgba(9,10,18,.95)_40%),linear-gradient(135deg,rgba(124,92,255,.35),transparent)]" />
-            <div className="relative flex min-h-[300px] flex-col justify-end gap-2 p-4">
+            <div className="theme-dark-scope relative flex min-h-[300px] flex-col justify-end gap-2 p-4">
               <Pill tone="live" dot className="self-start">
                 AO VIVO AGORA
               </Pill>

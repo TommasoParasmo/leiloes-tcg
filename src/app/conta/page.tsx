@@ -31,11 +31,12 @@ async function Conta() {
   if (!data.user) redirect("/entrar?next=/conta");
   const uid = data.user.id;
 
-  const [{ data: profile }, { data: address }, { data: penalties }, lots] = await Promise.all([
+  const [{ data: profile }, { data: address }, { data: penalties }, lots, { count: unread }] = await Promise.all([
     sb.from("profiles").select("full_name, nickname, whatsapp, cpf, status, role").eq("id", uid).maybeSingle(),
     sb.from("addresses").select("cep, street, number, complement, district, city, state").eq("user_id", uid).eq("is_default", true).maybeSingle(),
     sb.from("penalties").select("id, reason, issued_at").eq("user_id", uid).is("removed_at", null),
     myLots(sb),
+    sb.from("notifications").select("id", { count: "exact", head: true }).is("read_at", null),
   ]);
   const openLot = lots.find((l) => l.status === "open");
   const cards = penalties?.length ?? 0;
@@ -67,6 +68,20 @@ async function Conta() {
             </Link>
           </>
         )}
+
+        <Link href="/conta/avisos" className="flex min-h-12 items-center justify-between rounded-md border border-line bg-surface px-4 font-bold">
+          Avisos
+          <span className="flex items-center gap-2">
+            {!!unread && (
+              <span className="rounded-pill bg-live px-2 py-0.5 text-xs font-extrabold text-on-accent tabular">
+                {unread} {unread === 1 ? "novo" : "novos"}
+              </span>
+            )}
+            <span aria-hidden className="text-muted">
+              ›
+            </span>
+          </span>
+        </Link>
 
         <Link href="/conta/pedidos" className="flex min-h-12 items-center justify-between rounded-md border border-line bg-surface px-4 font-bold">
           Meus pedidos e pagamentos

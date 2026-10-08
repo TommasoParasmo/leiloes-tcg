@@ -257,3 +257,21 @@ describe("painel: lote, envio e WhatsApp", () => {
     expect(row.status).toBe("scheduled");
   });
 });
+
+describe("avisos", () => {
+  it("avisa uma vez quando o Pix está para vencer", async () => {
+    const buyer = await buyerWithAddress();
+    await auction(buyer);
+    const { order_id: id } = (await db.rpc(buyer, "close_my_lot", [(await lotOf(buyer)).id])) as { order_id: string };
+    await db.rpc(admin, "admin_quote_shipping", [id, 1000, "PAC", null]);
+    const due = () => db.sql(`select public.app_remind_due_payments()`);
+    await db.sql(`update orders set due_at = now() + interval '2 days' where id = $1`, [id]);
+    await due();
+    await db.sql(`update orders set due_at = now() + interval '3 hours' where id = $1`, [id]);
+    await due();
+    await due();
+    const notes = await db.sql<{ body: string }>(`select body from notifications where user_id = $1 and kind = 'payment_due_soon'`, [buyer]);
+    expect(notes).toHaveLength(1);
+    expect(notes[0].body).toContain("R$ 22,00");
+  });
+});

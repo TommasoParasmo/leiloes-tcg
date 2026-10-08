@@ -3,15 +3,20 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { fetchCard, fetchEvent, fetchRoomState } from "@/lib/auction/data";
+import { eventPreview } from "@/lib/share-preview";
 import { LiveRoom } from "@/components/room/live-room";
 import { TabBar } from "@/components/layout/tab-bar";
 import { PageLoading } from "@/components/ui/page-loading";
 
 type Params = Promise<{ eventoId: string }>;
 
-export const metadata: Metadata = { title: "Sala ao vivo · Bate Carta" };
-
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+  const { eventoId } = await params;
+  if (!UUID.test(eventoId)) return { title: "Sala ao vivo · Bate Carta" };
+  return eventPreview(await createClient(), eventoId);
+}
 
 export default function SalaPage({ params }: { params: Params }) {
   return (

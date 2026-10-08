@@ -1,5 +1,6 @@
 /* Bate Carta — Ultra Holo design tokens
-   Dark is the default theme. Light is applied with [data-theme="light"] on <html>.
+   Dark is the default theme. Light is applied with [data-theme="light"] on <html>
+   (set from the system preference by the script in app/layout.tsx).
    Fonts (Google Fonts): Unbounded 500/700/800 (display), Manrope 400–800 (body). */
 
 :root {
@@ -63,3 +64,17 @@
   --shadow-accent: 0 12px 30px -12px rgba(106, 72, 245, .55);
   color-scheme: light;
 }
+
+/* Blocks drawn over photos (hero, winner card) keep the dark palette in both themes. */
+.theme-dark-scope {
+  --color-text: #EEF0FF;
+  --color-muted: #B4B8D0;
+  --color-holo: #2FE6FF;
+  --color-surface-2: #1E202F;
+  color: var(--color-text);
+}
+
+/* Logo variants: escuro (light text) on the dark theme, claro (dark text) on the light theme. */
+.logo-on-light { display: none; }
+:root[data-theme="light"] .logo-on-light { display: inline; }
+:root[data-theme="light"] .logo-on-dark { display: none; }
