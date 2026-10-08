@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchCard, fetchRoomState } from "@/lib/auction/data";
 import { clockOffsetMs, mergePublicState, nextClockSync, nextEventStatus, type ClockSync } from "@/lib/auction/logic";
 import type { CardInfo, EventInfo, RoundState } from "@/lib/auction/types";
+import type { ChatEvent, ChatMessage } from "@/lib/chat";
 
 /** Sem o tempo real, a sala relê o servidor neste intervalo. */
 const OFFLINE_POLL_MS = 4000;
@@ -39,7 +40,13 @@ export function useRoom(
     card: CardInfo | null;
     eventStatus?: EventInfo["status"];
   },
+  /** Chat da sala: chega pelo mesmo canal, sem abrir outra conexão. */
+  onChat?: (e: ChatEvent) => void,
 ): RoomData {
+  const onChatRef = useRef(onChat);
+  useEffect(() => {
+    onChatRef.current = onChat;
+  });
   const [round, setRound] = useState(initial.round);
   const [card, setCard] = useState(initial.card);
   const [eventStatus, setEventStatus] = useState<EventInfo["status"] | null>(initial.eventStatus ?? initial.round?.event_status ?? null);
@@ -119,6 +126,12 @@ export function useRoom(
       })
       .on("broadcast", { event: "event" }, ({ payload }) => {
         setEventStatus((prev) => nextEventStatus(prev, (payload as { event_status: EventInfo["status"] }).event_status));
+      })
+      .on("broadcast", { event: "chat" }, ({ payload }) => {
+        onChatRef.current?.({ type: "message", message: payload as ChatMessage });
+      })
+      .on("broadcast", { event: "chat_hide" }, ({ payload }) => {
+        onChatRef.current?.({ type: "hide", id: (payload as { id: string }).id });
       })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
