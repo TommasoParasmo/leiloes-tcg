@@ -49,6 +49,20 @@ export function WhatsappQueue({ initial }: { initial: QueueMessage[] }) {
     }
   }
 
+  async function run(id: string, fn: "admin_whatsapp_requeue" | "admin_whatsapp_dismiss") {
+    setBusy(id);
+    setError(null);
+    try {
+      const r = await adminRpc(sb, fn, { p_message_id: id });
+      if (!r.ok) setError(auctionMessage(r));
+      else setMessages((list) => list.map((m) => (m.id === id ? { ...m, status: fn === "admin_whatsapp_requeue" ? "manual_pending" : "cancelled", lastError: null } : m)));
+    } catch {
+      setError("Sem conexão com o servidor. Tente de novo.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function copy(m: QueueMessage) {
     try {
       await navigator.clipboard.writeText(m.text);
@@ -115,11 +129,20 @@ export function WhatsappQueue({ initial }: { initial: QueueMessage[] }) {
                     Já publiquei
                   </Button>
                 </div>
-                {m.status !== "failed" && (
-                  <button type="button" disabled={!!busy} onClick={() => mark(m.id, false)} className="min-h-11 text-xs font-bold text-muted">
-                    Não consegui publicar
+                <div className="grid grid-cols-2 gap-2">
+                  {m.status === "failed" ? (
+                    <button type="button" disabled={!!busy} onClick={() => run(m.id, "admin_whatsapp_requeue")} className="min-h-11 text-xs font-bold text-muted">
+                      Voltar para pendentes
+                    </button>
+                  ) : (
+                    <button type="button" disabled={!!busy} onClick={() => mark(m.id, false)} className="min-h-11 text-xs font-bold text-muted">
+                      Não consegui publicar
+                    </button>
+                  )}
+                  <button type="button" disabled={!!busy} onClick={() => run(m.id, "admin_whatsapp_dismiss")} className="min-h-11 text-xs font-bold text-muted">
+                    Não publicar
                   </button>
-                )}
+                </div>
               </>
             ) : (
               <p className="text-xs text-win">Publicada{m.sentAt ? ` em ${new Date(m.sentAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}` : ""}</p>
@@ -128,7 +151,7 @@ export function WhatsappQueue({ initial }: { initial: QueueMessage[] }) {
         ))
       ) : (
         <p className="rounded-md border border-line bg-surface p-5 text-center text-sm text-muted">
-          {tab === "pending" ? "Nada para publicar. Os resultados aparecem aqui quando uma rodada termina com vencedor." : tab === "sent" ? "Nenhuma mensagem publicada ainda." : "Nenhuma mensagem com erro."}
+          {tab === "pending" ? "Nada para publicar. Os resultados aparecem aqui quando uma rodada termina." : tab === "sent" ? "Nenhuma mensagem publicada ainda." : "Nenhuma mensagem com erro."}
         </p>
       )}
       <p className="text-center text-xs text-muted">Envio manual enquanto a automação do grupo não estiver disponível. O resultado fica pendente até você confirmar.</p>

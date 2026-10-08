@@ -12,6 +12,7 @@ import { whatsappShareUrl } from "@/lib/whatsapp/message";
 import { Button } from "@/components/ui/button";
 import { Kicker } from "@/components/ui/label";
 import { Pill } from "@/components/ui/pill";
+import { Sheet } from "@/components/ui/sheet";
 import { useCloseWhenExpired, useRoom, useTicker } from "@/components/room/use-room";
 import { RoundSheet } from "./round-sheet";
 
@@ -39,6 +40,8 @@ export function EventControl({ event, sellerId }: { event: AdminEvent; sellerId:
   const [message, setMessage] = useState<{ tone: "danger" | "win"; text: string } | null>(null);
   // painel da rodada: "new" escolhe carta e configura; uma rodada da fila abre para editar
   const [sheet, setSheet] = useState<"new" | QueueRound | null>(null);
+  // confirmação antes de tirar uma carta da fila
+  const [removing, setRemoving] = useState<QueueRound | null>(null);
 
   const reload = useCallback(async () => {
     const [r, c] = await Promise.all([fetchEventRounds(sb, event.id), fetchFreeCards(sb, sellerId)]);
@@ -66,18 +69,26 @@ export function EventControl({ event, sellerId }: { event: AdminEvent; sellerId:
     if (busy) return;
     setBusy(label);
     setMessage(null);
+    let result: AuctionResult;
     try {
-      const result = await fn();
+      result = await fn();
       if (result.state) room.applyState(result.state as RoundState);
-      if (!result.ok) setMessage({ tone: "danger", text: auctionMessage(result) });
-      else after?.(result);
-      await room.refresh();
-      await reload();
     } catch {
-      setMessage({ tone: "danger", text: "Sem conexão com o servidor. Nada foi alterado, tente de novo." });
-    } finally {
+      // sem resposta não dá para saber se o servidor recebeu: a tela relê e mostra o estado real
+      setMessage({ tone: "danger", text: "Sem resposta do servidor. Confira a tela antes de tentar de novo." });
+      await Promise.all([room.refresh(), reload()]).catch(() => {});
       setBusy(null);
+      return;
     }
+    if (!result.ok) setMessage({ tone: "danger", text: auctionMessage(result) });
+    else after?.(result);
+    try {
+      await Promise.all([room.refresh(), reload()]);
+    } catch {
+      // a ação já foi feita; só a atualização da tela falhou
+      if (result.ok) setMessage({ tone: "danger", text: "Feito, mas a tela não atualizou. Recarregue a página." });
+    }
+    setBusy(null);
   }
 
   const active = room.round && (room.round.status === "open" || room.round.status === "paused") ? room.round : null;
@@ -100,6 +111,7 @@ export function EventControl({ event, sellerId }: { event: AdminEvent; sellerId:
     if (error) setMessage({ tone: "danger", text: "Não foi possível tirar a carta da fila." });
     await reload().catch(() => {});
     setBusy(null);
+    setRemoving(null);
   }
 
   return (
@@ -213,6 +225,19 @@ export function EventControl({ event, sellerId }: { event: AdminEvent; sellerId:
               }}
             />
           )}
+          {removing && (
+            <Sheet title={`Tirar ${removing.card.name} da fila?`} onClose={() => busy !== "remove" && setRemoving(null)}>
+              <p className="text-sm text-muted">A carta volta para as cartas livres e pode entrar em outro evento.</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="secondary" disabled={busy === "remove"} onClick={() => setRemoving(null)}>
+                  Manter
+                </Button>
+                <Button variant="danger" pending={busy === "remove"} onClick={() => void remove(removing.id)}>
+                  Tirar da fila
+                </Button>
+              </div>
+            </Sheet>
+          )}
           {queued.length ? (
             <ol className="flex flex-col gap-1.5">
               {queued.map((r, i) => (
@@ -238,7 +263,7 @@ export function EventControl({ event, sellerId }: { event: AdminEvent; sellerId:
                     <IconButton label={`Descer ${r.card.name}`} disabled={i === queued.length - 1 || !!busy} onClick={() => move(i, 1)}>
                       ↓
                     </IconButton>
-                    <IconButton label={`Tirar ${r.card.name} da fila`} disabled={!!busy} onClick={() => remove(r.id)}>
+                    <IconButton label={`Tirar ${r.card.name} da fila`} disabled={!!busy} onClick={() => setRemoving(r)}>
                       ✕
                     </IconButton>
                   </div>
@@ -326,6 +351,7 @@ function ActiveRound({
   const remaining = remainingMs(round, now, offsetMs);
   useCloseWhenExpired(sb, round, remaining, applyState);
   const [cancelling, setCancelling] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
   const [reason, setReason] = useState("");
   const paused = round.status === "paused";
 
@@ -379,13 +405,36 @@ function ActiveRound({
         <Button variant="outline" pending={busy === "extend"} disabled={!!busy || round.close_mode !== "timer" || paused} onClick={onExtend}>
           +15 s
         </Button>
-        <Button pending={busy === "close"} disabled={!!busy} onClick={onClose}>
+        <Button pending={busy === "close"} disabled={!!busy} onClick={() => setConfirmClose(true)}>
           Encerrar agora
         </Button>
         <Button variant="danger" disabled={!!busy} onClick={() => setCancelling((v) => !v)} aria-expanded={cancelling}>
           Cancelar rodada
         </Button>
       </div>
+      {confirmClose && (
+        <Sheet title="Encerrar a rodada agora?" onClose={() => setConfirmClose(false)}>
+          <p className="text-sm text-muted">
+            {round.leading_nickname && round.current_amount_cents != null
+              ? `${round.leading_nickname} arremata ${card?.name ?? "a carta"} por ${formatBRL(round.current_amount_cents)}. Não dá para desfazer.`
+              : "Ninguém deu lance: a carta volta a ficar livre para outro evento."}
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <Button variant="secondary" onClick={() => setConfirmClose(false)}>
+              Continuar rodada
+            </Button>
+            <Button
+              pending={busy === "close"}
+              onClick={() => {
+                setConfirmClose(false);
+                onClose();
+              }}
+            >
+              Encerrar
+            </Button>
+          </div>
+        </Sheet>
+      )}
       {cancelling && (
         <form
           className="flex flex-col gap-2 rounded-md border border-danger/50 bg-danger/10 p-3"
