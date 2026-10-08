@@ -11,8 +11,8 @@
   --color-line: #2B2D41;
   --color-text: #EEF0FF;
   --color-muted: #8A8EA8;
-  --color-accent: #7C5CFF;
-  --color-accent-hover: #8F73FF;
+  --color-accent: #7050FA;
+  --color-accent-hover: #6340EE;
   --color-accent-text: #A08BFF;
   --color-on-accent: #FFFFFF;
   --color-holo: #2FE6FF;
@@ -38,7 +38,7 @@
   --radius-lg: 22px;
   --radius-pill: 999px;
 
-  --shadow-accent: 0 12px 34px -10px rgba(124, 92, 255, .7);
+  --shadow-accent: 0 12px 34px -10px rgba(112, 80, 250, .7);
   --background-image-holo: linear-gradient(135deg, #7C5CFF 0%, #2FE6FF 100%);
 }
 
