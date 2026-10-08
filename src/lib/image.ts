@@ -26,7 +26,11 @@ export async function canOpenPhoto(file: File): Promise<boolean> {
     bitmap.close();
     return true;
   } catch {
-    return false;
+    // mesmo caminho alternativo do shrinkPhoto: o que a <img> abre também dá para salvar
+    return decodeWithImg(file).then(
+      () => true,
+      () => false,
+    );
   }
 }
 
