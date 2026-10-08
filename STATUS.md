@@ -43,4 +43,4 @@ Plano completo: etapas 1 a 9 (ver thread "Dev" do projeto).
 
 ## A confirmar com o Tom
 
-- Vencimento com acumulação (7 dias após o segundo leilão?) — antes da etapa 5.
+- ~~Vencimento com acumulação~~ decidido por Tom em 08/10: quando termina o 2º leilão acumulado, o comprador tem 24h para PAGAR o Pix; passou disso, cartão amarelo. (Sem acumulação, o Pix segue com 7 dias.)

@@ -36,7 +36,20 @@ export type AuctionCode =
   | "blocked"
   | "must_close_lot"
   | "reason_required"
-  | "forbidden";
+  | "forbidden"
+  | "created"
+  | "reordered"
+  | "finished"
+  | "sent"
+  | "failed"
+  | "closed"
+  | "not_expired"
+  | "queue_changed"
+  | "queue_empty"
+  | "event_not_found"
+  | "event_already_finished"
+  | "message_not_found"
+  | "message_already_done";
 
 export interface AuctionResult {
   ok: boolean;
@@ -94,6 +107,18 @@ export function auctionMessage(result: Pick<AuctionResult, "code" | "min_cents" 
       return "Informe o motivo";
     case "round_has_no_timer":
       return "Essa rodada não tem cronômetro";
+    case "queue_changed":
+      return "A fila mudou enquanto você editava. Confira e tente de novo";
+    case "queue_empty":
+      return "Não há mais cartas na fila";
+    case "event_not_found":
+      return "Evento não encontrado";
+    case "event_already_finished":
+      return "Esse evento já foi encerrado";
+    case "message_already_done":
+      return "Essa mensagem já foi marcada";
+    case "invalid_request":
+      return "Confira os dados e tente de novo";
     default:
       return "Não foi possível concluir. Tente novamente";
   }
