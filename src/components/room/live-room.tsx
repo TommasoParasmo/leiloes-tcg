@@ -1,11 +1,12 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { auctionMessage, type AuctionResult } from "@/lib/auction/codes";
 import { buyNow, placeBid, withOneRetry } from "@/lib/auction/data";
 import { bidBoxTone, bidChoices, newIdempotencyKey, remainingMs, timerProgress } from "@/lib/auction/logic";
 import type { CardInfo, EventInfo, RoundState } from "@/lib/auction/types";
+import { applyChatEvent, type ChatEvent, type ChatMessage } from "@/lib/chat";
 import { formatBRL } from "@/lib/money";
 import { Pill } from "@/components/ui/pill";
 import { BidBox } from "./bid-box";
@@ -14,15 +15,28 @@ import { BidHistory } from "./bid-history";
 import { BuyButton } from "./buy-button";
 import { CardArt } from "./card-art";
 import { CardTitle } from "./card-title";
+import { ChatPanel } from "./chat-panel";
 import { BlockedNotice, ReconnectBanner, RoomToast } from "./notices";
 import { LostCard, WinnerCard, WonNextSteps } from "./result-cards";
 import { useCloseWhenExpired, useRoom, useTicker } from "./use-room";
 
 type Toast = { tone: "live" | "danger" | "neutral"; text: string; detail?: string } | null;
 
-export function LiveRoom({ event, initialRound, initialCard }: { event: EventInfo; initialRound: RoundState | null; initialCard: CardInfo | null }) {
+export function LiveRoom({
+  event,
+  initialRound,
+  initialCard,
+  viewer,
+}: {
+  event: EventInfo;
+  initialRound: RoundState | null;
+  initialCard: CardInfo | null;
+  viewer: { loggedIn: boolean; canModerate: boolean };
+}) {
   const [sb] = useState(createClient);
-  const room = useRoom(sb, event.id, { round: initialRound, card: initialCard, eventStatus: event.status });
+  const [chat, setChat] = useState<ChatMessage[]>([]);
+  const onChat = useCallback((e: ChatEvent) => setChat((c) => applyChatEvent(c, e)), []);
+  const room = useRoom(sb, event.id, { round: initialRound, card: initialCard, eventStatus: event.status }, onChat);
   const { round, card } = room;
 
   const hasTimer = round?.status === "open" && !!round.ends_at;
@@ -77,6 +91,18 @@ export function LiveRoom({ event, initialRound, initialCard }: { event: EventInf
   }
 
   const eventOver = room.eventStatus === "finished" || room.eventStatus === "cancelled";
+  const chatPanel = (
+    <ChatPanel
+      sb={sb}
+      eventId={event.id}
+      live={room.eventStatus === "live"}
+      loggedIn={viewer.loggedIn}
+      canModerate={viewer.canModerate}
+      messages={chat}
+      setMessages={setChat}
+      reconnecting={room.reconnecting}
+    />
+  );
 
   if (!round || !card) {
     return (
@@ -89,6 +115,7 @@ export function LiveRoom({ event, initialRound, initialCard }: { event: EventInf
             <p className="mt-1 text-sm text-muted">Fique nesta tela: ela atualiza sozinha quando o leiloeiro começar.</p>
           </section>
         )}
+        {chatPanel}
       </Shell>
     );
   }
@@ -155,6 +182,7 @@ export function LiveRoom({ event, initialRound, initialCard }: { event: EventInf
         </>
       )}
       {eventOver && closed && <EventOver cancelled={room.eventStatus === "cancelled"} loggedIn={block !== "not_authenticated"} />}
+      {chatPanel}
     </Shell>
   );
 }
