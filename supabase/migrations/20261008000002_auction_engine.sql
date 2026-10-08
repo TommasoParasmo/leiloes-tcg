@@ -1,4 +1,4 @@
--- Leilões TCG — motor de leilão.
+-- Bate Carta — motor de leilão.
 -- Toda decisão de vencedor acontece aqui, dentro de transações com a linha da rodada
 -- travada (SELECT ... FOR UPDATE). O relógio usado é sempre o do banco (clock_timestamp()).
 -- As funções públicas devolvem jsonb {ok, code, ...}; o app traduz `code` para mensagens.

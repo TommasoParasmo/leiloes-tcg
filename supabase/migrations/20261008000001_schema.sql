@@ -1,4 +1,4 @@
--- Leilões TCG — schema base.
+-- Bate Carta — schema base.
 -- Convenções:
 --   * Dinheiro sempre em centavos (bigint). Nunca float.
 --   * Toda tabela de negócio tem seller_id (preparado para múltiplos leiloeiros).

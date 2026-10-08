@@ -1,4 +1,4 @@
--- Leilões TCG — Row Level Security.
+-- Bate Carta — Row Level Security.
 -- Leitura pública: catálogo (eventos publicados, cartas, fotos, rodadas).
 -- Dados pessoais e financeiros: só o dono e o leiloeiro.
 -- Escritas sensíveis: só via funções (lances, arremates, pagamentos, penalidades).

@@ -6,7 +6,7 @@ const unbounded = Unbounded({ variable: "--font-unbounded", subsets: ["latin"], 
 const manrope = Manrope({ variable: "--font-manrope", subsets: ["latin"], weight: ["400", "500", "600", "700", "800"] });
 
 export const metadata: Metadata = {
-  title: "Leilão TCG",
+  title: "Bate Carta",
   description: "Leilões ao vivo de cartas Pokémon TCG, One Piece, Magic, Lorcana e outros.",
 };
 

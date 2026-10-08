@@ -1,4 +1,4 @@
-# Leilão TCG
+# Bate Carta
 
 Plataforma de leilões ao vivo de cartas colecionáveis (Pokémon TCG, One Piece, Magic, Lorcana…).
 O site é a fonte oficial dos resultados; o grupo do WhatsApp recebe a publicação de cada arremate.
