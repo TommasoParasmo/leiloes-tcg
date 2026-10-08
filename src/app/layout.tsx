@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Manrope, Unbounded } from "next/font/google";
 import { publicEnv } from "@/lib/env";
+import { THEME_COLORS } from "@/lib/theme";
 import "./globals.css";
 
 const unbounded = Unbounded({ variable: "--font-unbounded", subsets: ["latin"], weight: ["500", "700", "800"] });
@@ -21,16 +22,17 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: "Bate Carta", statusBarStyle: "black-translucent" },
 };
 
-// Tema do sistema antes da primeira pintura (sem piscar): escuro é o padrão.
-const themeScript = `(()=>{try{var m=matchMedia("(prefers-color-scheme: light)");var s=function(){document.documentElement.dataset.theme=m.matches?"light":"dark"};s();m.addEventListener("change",s)}catch(e){}})()`;
+// Tema antes da primeira pintura (sem piscar): a escolha salva pelo botão vale; sem ela, segue o
+// sistema (escuro é o padrão).
+const themeScript = `(()=>{try{var m=matchMedia("(prefers-color-scheme: light)");var s=function(){var t=null;try{t=localStorage.getItem("theme")}catch(e){}var d=document.documentElement;d.dataset.theme=t==="light"||t==="dark"?t:m.matches?"light":"dark";if(t)document.querySelectorAll('meta[name="theme-color"]').forEach(function(e){e.content=d.dataset.theme==="light"?"${THEME_COLORS.light}":"${THEME_COLORS.dark}"})};s();m.addEventListener("change",s);new MutationObserver(function(r){if(r.some(function(x){return[].some.call(x.addedNodes,function(n){return n.nodeName==="META"})}))s()}).observe(document,{childList:true,subtree:true})}catch(e){}})()`;
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#F5F6FB" },
-    { media: "(prefers-color-scheme: dark)", color: "#090A12" },
+    { media: "(prefers-color-scheme: light)", color: THEME_COLORS.light },
+    { media: "(prefers-color-scheme: dark)", color: THEME_COLORS.dark },
   ],
 };
 

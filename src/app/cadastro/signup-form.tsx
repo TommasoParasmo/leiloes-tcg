@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Field, FormError } from "@/components/ui/field";
 import { authMessage } from "@/lib/auth-errors";
 import { TERMS_VERSION } from "@/lib/legal";
-import { publicEnv } from "@/lib/env";
 import { createClient } from "@/lib/supabase/client";
 import * as v from "@/lib/validation";
 
@@ -129,7 +128,8 @@ export function SignupForm({ next = "/" }: { next?: string }) {
       email: values.email.trim(),
       password: values.password,
       options: {
-        emailRedirectTo: `${publicEnv.siteUrl}/auth/callback?next=${encodeURIComponent(`/entrar?confirmado=1&next=${encodeURIComponent(next)}`)}`,
+        // volta para o endereço onde a pessoa se cadastrou (o código PKCE fica no cookie deste endereço)
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(`/entrar?confirmado=1&next=${encodeURIComponent(next)}`)}`,
         data: {
           full_name: values.fullName.trim(),
           nickname: values.nickname.trim(),
