@@ -40,7 +40,7 @@ async function Arremates() {
           <section className="flex flex-col gap-2">
             <h2 className="text-[11px] font-extrabold uppercase tracking-[.06em] text-muted">Lotes fechados</h2>
             {closed.map((l) => (
-              <AccumulationCard key={l.id} lot={l} />
+              <AccumulationCard key={l.id} lot={l} headingLevel={3} />
             ))}
           </section>
         )}

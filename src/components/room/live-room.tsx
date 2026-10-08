@@ -76,9 +76,9 @@ export function LiveRoom({ event, initialRound, initialCard }: { event: EventInf
 
   if (!round || !card) {
     return (
-      <Shell event={event} round={round} reconnecting={room.reconnecting}>
+      <Shell event={event} round={round} reconnecting={room.reconnecting} announce={{ polite: "", assertive: "" }}>
         <section className="rounded-md border border-line bg-surface p-5 text-center">
-          <p className="font-bold">A primeira carta ainda não foi liberada</p>
+          <h1 className="font-bold">A primeira carta ainda não foi liberada</h1>
           <p className="mt-1 text-sm text-muted">Fique nesta tela: ela atualiza sozinha quando o leiloeiro começar.</p>
         </section>
       </Shell>
@@ -90,8 +90,27 @@ export function LiveRoom({ event, initialRound, initialCard }: { event: EventInf
   const iWon = round.status === "closed" && round.leading_is_me;
   const block = round.my_block;
 
+  // Anúncios para leitores de tela: a região fica sempre montada e só o texto muda.
+  const toastText = toast ? [toast.text, toast.detail].filter(Boolean).join(". ") : "";
+  const speedOpen = round.mode === "speed" && round.status === "open";
+  const announce = {
+    assertive: toast?.tone === "live" ? toastText : speedOpen ? "Rodada liberada. Arremate agora." : "",
+    polite:
+      toast && toast.tone !== "live"
+        ? toastText
+        : round.status === "cancelled"
+          ? "Rodada cancelada pelo leiloeiro."
+          : iWon
+            ? `Você arrematou ${card.name} por ${formatBRL(round.current_amount_cents ?? 0)}.`
+            : closed && round.leading_nickname
+              ? `${round.leading_nickname} ${round.mode === "speed" ? "arrematou primeiro" : "venceu"}.`
+              : round.status === "paused"
+                ? "Rodada pausada pelo leiloeiro."
+                : "",
+  };
+
   return (
-    <Shell event={event} round={round} reconnecting={room.reconnecting}>
+    <Shell event={event} round={round} reconnecting={room.reconnecting} announce={announce}>
       {toast && <RoomToast {...toast} />}
       <CardArt photos={card.photos} label={label} alt={card.name} />
       <CardTitle card={card} extra={round.mode === "speed" && round.fixed_price_cents != null ? `Preço fixo ${formatBRL(round.fixed_price_cents)}` : undefined} />
@@ -121,7 +140,19 @@ export function LiveRoom({ event, initialRound, initialCard }: { event: EventInf
   );
 }
 
-function Shell({ event, round, reconnecting, children }: { event: EventInfo; round: RoundState | null; reconnecting: boolean; children: React.ReactNode }) {
+function Shell({
+  event,
+  round,
+  reconnecting,
+  announce,
+  children,
+}: {
+  event: EventInfo;
+  round: RoundState | null;
+  reconnecting: boolean;
+  announce: { polite: string; assertive: string };
+  children: React.ReactNode;
+}) {
   const pill =
     round?.status === "open" ? (
       round.mode === "speed" ? <Pill tone="live" dot>Liberado</Pill> : <Pill tone="live" dot>Ao vivo</Pill>
@@ -137,7 +168,13 @@ function Shell({ event, round, reconnecting, children }: { event: EventInfo; rou
   return (
     <div className="mx-auto flex w-full max-w-md flex-1 flex-col">
       <ReconnectBanner show={reconnecting} />
-      <header className="flex min-h-14 items-center justify-between px-4">
+      <p aria-live="polite" className="sr-only">
+        {announce.polite}
+      </p>
+      <p aria-live="assertive" className="sr-only">
+        {announce.assertive}
+      </p>
+      <header className="flex min-h-14 items-center justify-between px-4 pt-[env(safe-area-inset-top)]">
         <Link href="/" aria-label="Bate Carta, início">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/brand/batecarta-logo-escuro.svg" alt="Bate Carta" width={125} height={24} className="h-6 w-auto" />

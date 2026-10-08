@@ -88,7 +88,11 @@ export function SignupForm() {
     e.preventDefault();
     const errs = validate(values);
     setErrors(errs);
-    if (Object.values(errs).some(Boolean)) return setFormError("Confira os campos destacados.");
+    if (Object.values(errs).some(Boolean)) {
+      setFormError("Confira os campos destacados.");
+      focusFirstInvalid(e.currentTarget as HTMLFormElement);
+      return;
+    }
     setPending(true);
     setFormError(null);
     const sb = createClient();
@@ -97,7 +101,9 @@ export function SignupForm() {
     if (available === false) {
       setPending(false);
       setErrors((s) => ({ ...s, nickname: "Esse apelido já está em uso. Escolha outro." }));
-      return setFormError("Confira os campos destacados.");
+      setFormError("Confira os campos destacados.");
+      focusFirstInvalid(e.currentTarget as HTMLFormElement);
+      return;
     }
 
     const { data, error } = await sb.auth.signUp({
@@ -121,13 +127,17 @@ export function SignupForm() {
         },
       },
     });
-    setPending(false);
-    if (error) return setFormError(authMessage(error));
+    if (error) {
+      setPending(false);
+      return setFormError(authMessage(error));
+    }
     if (data.session) {
+      // continua "enviando" até a navegação terminar, para não haver segundo envio
       router.replace("/");
       router.refresh();
       return;
     }
+    setPending(false);
     setSentTo(values.email.trim());
   }
 
@@ -144,11 +154,12 @@ export function SignupForm() {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3" noValidate>
-      <Field label="Nome completo" autoComplete="name" value={values.fullName} onChange={set("fullName")} error={errors.fullName} />
-      <Field label="Apelido público" value={values.nickname} onChange={set("nickname")} error={errors.nickname} hint="Aparece nos lances e no grupo do WhatsApp." maxLength={30} />
+      <Field label="Nome completo" name="name" autoComplete="name" value={values.fullName} onChange={set("fullName")} error={errors.fullName} />
+      <Field label="Apelido público" name="nickname" autoComplete="nickname" spellCheck={false} autoCapitalize="none" value={values.nickname} onChange={set("nickname")} error={errors.nickname} hint="Aparece nos lances e no grupo do WhatsApp." maxLength={30} />
       <div className="grid grid-cols-2 gap-2">
         <Field
           label="WhatsApp"
+          name="tel"
           type="tel"
           inputMode="tel"
           autoComplete="tel-national"
@@ -161,6 +172,7 @@ export function SignupForm() {
         />
         <Field
           label="CEP"
+          name="postal-code"
           inputMode="numeric"
           autoComplete="postal-code"
           value={values.cep}
@@ -176,19 +188,30 @@ export function SignupForm() {
           hint={cepStatus === "loading" ? "Buscando endereço…" : undefined}
         />
       </div>
-      <Field label="Rua" autoComplete="address-line1" value={values.street} onChange={set("street")} error={errors.street} />
+      {/* sempre montado: leitores de tela anunciam a busca e o preenchimento automático */}
+      <p aria-live="polite" className="sr-only">
+        {cepStatus === "loading"
+          ? "Buscando endereço pelo CEP…"
+          : cepStatus === "found"
+            ? "Endereço encontrado. Rua, bairro, cidade e UF foram preenchidos."
+            : cepStatus === "not_found"
+              ? "CEP não encontrado. Preencha o endereço."
+              : ""}
+      </p>
+      <Field label="Rua" name="address-line1" autoComplete="address-line1" value={values.street} onChange={set("street")} error={errors.street} />
       <div className="grid grid-cols-2 gap-2">
-        <Field label="Número" value={values.number} onChange={set("number")} error={errors.number} />
-        <Field label="Complemento" placeholder="Apto, bloco" value={values.complement} onChange={set("complement")} />
+        <Field label="Número" name="address-number" value={values.number} onChange={set("number")} error={errors.number} />
+        <Field label="Complemento" name="address-line2" autoComplete="address-line2" placeholder="Apto, bloco…" value={values.complement} onChange={set("complement")} />
       </div>
-      <Field label="Bairro" value={values.district} onChange={set("district")} error={errors.district} />
+      <Field label="Bairro" name="district" value={values.district} onChange={set("district")} error={errors.district} />
       <div className="grid grid-cols-[1fr_88px] gap-2">
-        <Field label="Cidade" autoComplete="address-level2" value={values.city} onChange={set("city")} error={errors.city} />
-        <Field label="UF" autoComplete="address-level1" maxLength={2} value={values.state} onChange={set("state")} error={errors.state} />
+        <Field label="Cidade" name="city" autoComplete="address-level2" value={values.city} onChange={set("city")} error={errors.city} />
+        <Field label="UF" name="state" autoComplete="address-level1" autoCapitalize="characters" maxLength={2} value={values.state} onChange={set("state")} error={errors.state} />
       </div>
-      <Field label="E-mail" type="email" inputMode="email" autoComplete="email" value={values.email} onChange={set("email")} error={errors.email} />
+      <Field label="E-mail" name="email" type="email" inputMode="email" autoComplete="email" spellCheck={false} autoCapitalize="none" value={values.email} onChange={set("email")} error={errors.email} />
       <Field
         label="Senha"
+        name="new-password"
         type="password"
         autoComplete="new-password"
         value={values.password}
@@ -203,4 +226,9 @@ export function SignupForm() {
       <p className="text-center text-xs text-muted">Seus dados são usados só para lances, pagamentos e frete (LGPD).</p>
     </form>
   );
+}
+
+/** Leva o foco ao primeiro campo com erro, depois que o React marcar aria-invalid. */
+function focusFirstInvalid(form: HTMLFormElement) {
+  requestAnimationFrame(() => form.querySelector<HTMLInputElement>('[aria-invalid="true"]')?.focus());
 }

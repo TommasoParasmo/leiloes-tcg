@@ -22,16 +22,19 @@ export function LoginForm({ next }: { next: string }) {
     setPending(true);
     setError(null);
     const { error } = await createClient().auth.signInWithPassword({ email: email.trim(), password });
-    setPending(false);
-    if (error) return setError(authMessage(error));
+    if (error) {
+      setPending(false);
+      return setError(authMessage(error));
+    }
+    // continua "enviando" até a navegação terminar, para não haver segundo envio
     router.replace(next);
     router.refresh();
   }
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3" noValidate>
-      <Field label="E-mail" type="email" autoComplete="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-      <Field label="Senha" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+      <Field label="E-mail" name="email" type="email" autoComplete="email" spellCheck={false} autoCapitalize="none" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+      <Field label="Senha" name="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
       <FormError message={error} />
       <Button type="submit" block pending={pending}>
         Entrar

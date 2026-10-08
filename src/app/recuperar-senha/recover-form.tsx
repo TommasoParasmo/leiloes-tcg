@@ -38,7 +38,7 @@ export function RecoverForm() {
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3" noValidate>
       <p className="text-sm text-muted">Informe o e-mail da sua conta. Vamos enviar um link para criar uma nova senha.</p>
-      <Field label="E-mail" type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+      <Field label="E-mail" name="email" type="email" inputMode="email" autoComplete="email" spellCheck={false} autoCapitalize="none" value={email} onChange={(e) => setEmail(e.target.value)} />
       <FormError message={error} />
       <Button type="submit" block pending={pending}>
         Enviar link

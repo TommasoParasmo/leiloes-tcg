@@ -5,7 +5,7 @@ import { formatBRL } from "@/lib/money";
 /** Cartão do vencedor: borda 2 px em degradê holo (design §5 WinnerCard). */
 export function WinnerCard({ amountCents, cardName, at }: { amountCents: number; cardName: string; at: string | null }) {
   return (
-    <section aria-live="polite" className="rounded-lg bg-holo p-[2px]">
+    <section className="rounded-lg bg-holo p-[2px]">
       <div className="rounded-[20px] bg-[linear-gradient(rgba(9,10,18,.86),rgba(9,10,18,.94)),url('/brand/winner-bg.jpg')] bg-cover bg-center p-5 text-center">
         <p className="text-xs font-extrabold uppercase tracking-[.12em] text-holo">Você arrematou</p>
         <p className="font-display text-[34px] font-extrabold tabular">{formatBRL(amountCents)}</p>
@@ -40,7 +40,7 @@ export function LostCard({ winner, amountCents, at, withMs }: { winner: string |
     );
   }
   return (
-    <section aria-live="polite" className="rounded-md border border-line bg-surface p-4 text-center">
+    <section className="rounded-md border border-line bg-surface p-4 text-center">
       <p className="font-bold">{withMs ? `${winner} arrematou primeiro` : `${winner} venceu`}</p>
       <p className="mt-1 text-sm text-muted tabular">
         Arrematada por {formatBRL(amountCents)}

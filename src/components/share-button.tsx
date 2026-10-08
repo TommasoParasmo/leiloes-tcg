@@ -19,8 +19,21 @@ export function ShareButton({ url, title, className }: { url: string; title: str
     }
   }
   return (
-    <button type="button" onClick={share} className={cn("inline-flex min-h-10 items-center rounded-pill bg-surface-2 px-3 text-xs font-bold", className)}>
-      {copied ? "Link copiado" : "Compartilhar"}
-    </button>
+    <>
+      {/* pílula de 40 px do design com área de toque de 48 px */}
+      <button
+        type="button"
+        onClick={share}
+        className={cn(
+          "relative inline-flex min-h-10 items-center rounded-pill bg-surface-2 px-3 text-xs font-bold after:absolute after:-inset-1 after:content-['']",
+          className,
+        )}
+      >
+        {copied ? "Link copiado" : "Compartilhar"}
+      </button>
+      <span aria-live="polite" className="sr-only">
+        {copied ? "Link copiado" : ""}
+      </span>
+    </>
   );
 }

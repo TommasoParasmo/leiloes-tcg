@@ -24,7 +24,7 @@ export function Field({
         aria-describedby={describedBy}
         {...input}
         className={cn(
-          "min-h-[46px] rounded-sm border bg-surface px-3.5 text-md text-text placeholder:text-muted/70",
+          "min-h-[46px] rounded-sm border bg-surface px-3.5 text-md text-text placeholder:text-muted",
           error ? "border-danger" : success ? "border-win" : "border-line",
         )}
       />

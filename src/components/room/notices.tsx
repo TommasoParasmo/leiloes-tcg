@@ -24,9 +24,9 @@ export function BlockedNotice({ reason }: { reason: "blocked" | "must_close_lot"
     <section className="rounded-md border border-danger/50 bg-danger/10 p-4">
       <div className="flex items-center gap-2">
         {reason === "blocked" && (
-          <span aria-label="2 cartões amarelos" className="flex gap-1">
-            <span className="h-5 w-3.5 rounded-[3px] bg-warn" />
-            <span className="h-5 w-3.5 rounded-[3px] bg-warn" />
+          <span role="img" aria-label="2 cartões amarelos" className="flex gap-1">
+            <span aria-hidden className="h-5 w-3.5 rounded-[3px] bg-warn" />
+            <span aria-hidden className="h-5 w-3.5 rounded-[3px] bg-warn" />
           </span>
         )}
         <p className="font-bold text-danger">{text.title}</p>
@@ -42,19 +42,26 @@ export function BlockedNotice({ reason }: { reason: "blocked" | "must_close_lot"
 /** Faixa fina no topo enquanto a conexão em tempo real volta (design §7). */
 export function ReconnectBanner({ show }: { show: boolean }) {
   if (!show) return null;
-  return <div role="status" className="bg-warn/15 px-4 py-1.5 text-center text-xs font-bold text-warn">Reconectando…</div>;
+  // Sobreposto, para não empurrar os botões de lance enquanto o usuário toca.
+  return (
+    <div role="status" className="fixed inset-x-0 top-0 z-40 bg-[color-mix(in_srgb,var(--color-warn)_18%,var(--color-bg))] px-4 pb-1.5 pt-[calc(env(safe-area-inset-top)+6px)] text-center text-xs font-bold text-warn">
+      Reconectando…
+    </div>
+  );
 }
 
-/** Aviso do topo: lance superado ou erro do servidor. */
+/**
+ * Aviso do topo: lance superado ou erro do servidor. Fica sobreposto (não desloca os
+ * botões) e é só visual: o anúncio para leitores de tela sai pela região viva da sala.
+ */
 export function RoomToast({ tone, text, detail }: { tone: "live" | "danger" | "neutral"; text: string; detail?: string }) {
   return (
     <div
-      role={tone === "live" ? "alert" : "status"}
-      aria-live={tone === "live" ? "assertive" : "polite"}
+      aria-hidden
       className={cn(
-        "flex items-center justify-between gap-3 rounded-md px-4 py-3 text-sm font-bold",
-        tone === "live" && "bg-live text-white",
-        tone === "danger" && "bg-danger/15 text-danger",
+        "fixed inset-x-4 top-[calc(env(safe-area-inset-top)+12px)] z-40 mx-auto flex max-w-md items-center justify-between gap-3 rounded-md px-4 py-3 text-sm font-bold shadow-lg",
+        tone === "live" && "bg-live text-bg",
+        tone === "danger" && "bg-[color-mix(in_srgb,var(--color-danger)_18%,var(--color-bg))] text-danger",
         tone === "neutral" && "bg-surface-2 text-text",
       )}
     >

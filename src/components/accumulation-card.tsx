@@ -4,12 +4,13 @@ import { cn } from "@/lib/cn";
 import { formatBRL } from "@/lib/money";
 
 /** Cartas guardadas com o leiloeiro e o contador de acumulação (design §5 AccumulationCard). */
-export function AccumulationCard({ lot }: { lot: Lot }) {
+export function AccumulationCard({ lot, headingLevel = 2 }: { lot: Lot; headingLevel?: 2 | 3 }) {
+  const Heading = headingLevel === 2 ? "h2" : "h3";
   const used = Math.min(lot.events_used, lot.max_events);
   return (
     <section className="rounded-md border border-line bg-surface p-4">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="font-bold">Cartas acumuladas</h2>
+        <Heading className="font-bold">{lot.status === "open" ? "Cartas acumuladas" : `Lote desde o Leilão #${lot.first_event_number}`}</Heading>
         {lot.must_close ? (
           <Pill tone="warn">
             {used}/{lot.max_events} · fechar agora
@@ -35,9 +36,9 @@ export function AccumulationCard({ lot }: { lot: Lot }) {
           <li key={w.id} className="flex items-center gap-3">
             {w.photo_url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={w.photo_url} alt="" loading="lazy" className="size-11 rounded-[5px] object-cover" />
+              <img src={w.photo_url} alt="" loading="lazy" width={44} height={44} className="size-11 rounded-[5px] object-cover" />
             ) : (
-              <span className="size-11 rounded-[5px] bg-surface-2" />
+              <span aria-hidden className="size-11 rounded-[5px] bg-surface-2" />
             )}
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold">{w.card_name}</p>

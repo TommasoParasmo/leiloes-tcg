@@ -52,9 +52,9 @@ async function Conta() {
         <section className="rounded-md border border-line bg-surface p-4">
           <div className="flex items-center justify-between">
             <h2 className="font-bold">Advertências</h2>
-            <span className="flex gap-1" aria-label={`${cards} de 2 cartões amarelos`}>
+            <span role="img" className="flex gap-1" aria-label={`${cards} de 2 cartões amarelos`}>
               {[0, 1].map((i) => (
-                <span key={i} className={i < cards ? "h-5 w-3.5 rounded-[3px] bg-warn" : "h-5 w-3.5 rounded-[3px] border border-dashed border-muted"} />
+                <span key={i} aria-hidden className={i < cards ? "h-5 w-3.5 rounded-[3px] bg-warn" : "h-5 w-3.5 rounded-[3px] border border-dashed border-muted"} />
               ))}
             </span>
           </div>

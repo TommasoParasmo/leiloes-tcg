@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ShareButton } from "@/components/share-button";
 import { Pill } from "@/components/ui/pill";
@@ -9,8 +10,9 @@ export function EventCard({ event, photo }: { event: EventListItem; photo: strin
   const when = eventDay(event.starts_at);
   return (
     <article className="relative overflow-hidden rounded-md border border-line bg-surface">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={photo} alt="" loading="lazy" className="absolute inset-y-0 right-0 h-full w-[62%] object-cover" />
+      <div className="absolute inset-y-0 right-0 w-[62%]">
+        <Image src={photo} alt="" fill sizes="(max-width: 448px) 62vw, 280px" className="object-cover" />
+      </div>
       <span aria-hidden className="absolute inset-0 bg-[linear-gradient(90deg,var(--color-surface)_38%,color-mix(in_srgb,var(--color-surface)_30%,transparent))]" />
       <div className="relative flex items-center gap-3 p-3">
         <div className="grid min-w-14 place-items-center rounded-sm bg-surface-2 px-2 py-1.5 text-center">
