@@ -30,4 +30,12 @@ describe("mensagem de resultado", () => {
     );
     expect(whatsappShareUrl("a b")).toBe("https://wa.me/?text=a%20b");
   });
+
+  it("rodada sem lances avisa que a carta volta", () => {
+    const text = buildRoundResultMessage(
+      { card_name: "Horsea", card_variant: null, amount_cents: null, winner_nickname: null, event_number: 15, round_id: "abc", photo_path: null },
+      "https://leilao.exemplo.com",
+    );
+    expect(text).toBe(["🃏 Horsea", "🎯 Leilão #15", "", "Sem lances nesta rodada. A carta volta em um próximo leilão!"].join("\n"));
+  });
 });

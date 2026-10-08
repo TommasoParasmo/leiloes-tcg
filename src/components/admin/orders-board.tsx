@@ -14,18 +14,19 @@ import { formatDue, ORDER_STATUS, PROOFS_BUCKET, type Order, type OrderStatus } 
 import { createClient } from "@/lib/supabase/client";
 import { formatWhatsapp } from "@/lib/validation";
 
-type Tab = "frete" | "pix" | "comprovante" | "pagos" | "cancelados";
+type Tab = "frete" | "pix" | "comprovante" | "pagos" | "enviados" | "cancelados";
 const TABS: { id: Tab; label: string; statuses: OrderStatus[] }[] = [
   { id: "frete", label: "Frete", statuses: ["awaiting_shipping_quote"] },
   { id: "pix", label: "Pix", statuses: ["awaiting_payment"] },
   { id: "comprovante", label: "Comprov.", statuses: ["proof_sent"] },
-  { id: "pagos", label: "Pagos", statuses: ["paid", "shipped", "delivered"] },
+  { id: "pagos", label: "Pagos", statuses: ["paid"] },
+  { id: "enviados", label: "Enviados", statuses: ["shipped", "delivered"] },
   { id: "cancelados", label: "Cancel.", statuses: ["cancelled"] },
 ];
 
-type Action = { kind: "quote" | "reject" | "cancel" | "confirm"; order: Order };
+type Action = { kind: "quote" | "reject" | "cancel" | "confirm" | "ship" | "deliver"; order: Order };
 
-/** Pedidos do leiloeiro: cotar frete, conferir comprovante, confirmar ou recusar o Pix. */
+/** Pedidos do leiloeiro: cotar frete, conferir comprovante, confirmar o Pix e registrar o envio. */
 export function OrdersBoard({ orders, now }: { orders: Order[]; now: number }) {
   const router = useRouter();
   const [sb] = useState(createClient);
@@ -61,7 +62,7 @@ export function OrdersBoard({ orders, now }: { orders: Order[]; now: number }) {
         ))}
       </section>
 
-      <div role="tablist" aria-label="Situação dos pedidos" className="grid grid-cols-5 gap-0.5 rounded-md bg-surface p-1">
+      <div role="tablist" aria-label="Situação dos pedidos" className="grid grid-cols-6 gap-0.5 rounded-md bg-surface p-1">
         {TABS.map((t) => {
           const n = orders.filter((o) => t.statuses.includes(o.status)).length;
           return (
@@ -102,6 +103,7 @@ export function OrdersBoard({ orders, now }: { orders: Order[]; now: number }) {
               {o.items.length} {o.items.length === 1 ? "carta" : "cartas"} · {formatBRL(o.subtotal_cents)}
               {o.shipping_cents != null ? ` + frete ${formatBRL(o.shipping_cents)}` : ""}
               {o.due_at && ["awaiting_payment", "proof_sent"].includes(o.status) ? ` · vence ${formatDue(o.due_at)}` : ""}
+              {o.shipment?.tracking_code ? ` · rastreio ${o.shipment.tracking_code}` : ""}
               {o.shipping_address ? ` · ${o.shipping_address.city}/${o.shipping_address.state}` : ""}
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -111,6 +113,13 @@ export function OrdersBoard({ orders, now }: { orders: Order[]; now: number }) {
                   <ActionButton onClick={() => void viewProof(o)}>Ver comprovante</ActionButton>
                   <ActionButton primary onClick={() => setAction({ kind: "confirm", order: o })}>Confirmar Pix</ActionButton>
                   <ActionButton onClick={() => setAction({ kind: "reject", order: o })}>Recusar</ActionButton>
+                </>
+              )}
+              {o.status === "paid" && <ActionButton primary onClick={() => setAction({ kind: "ship", order: o })}>Marcar enviado</ActionButton>}
+              {o.status === "shipped" && (
+                <>
+                  <ActionButton primary onClick={() => setAction({ kind: "deliver", order: o })}>Marcar entregue</ActionButton>
+                  <ActionButton onClick={() => setAction({ kind: "ship", order: o })}>Mudar rastreio</ActionButton>
                 </>
               )}
               {o.status === "awaiting_payment" && (
@@ -172,6 +181,7 @@ function ActionSheet({ action, sb, onClose, onDone }: { action: Action; sb: Retu
   const [service, setService] = useState(o.shipment?.service_name ?? "PAC");
   const [days, setDays] = useState(o.shipment?.delivery_days ? String(o.shipment.delivery_days) : "");
   const [reason, setReason] = useState("");
+  const [tracking, setTracking] = useState(o.shipment?.tracking_code ?? "");
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -230,6 +240,53 @@ function ActionSheet({ action, sb, onClose, onDone }: { action: Action; sb: Retu
         <FormError message={error} />
         <Button block variant="success" className="min-h-[52px]" pending={pending} onClick={() => void run(() => adminRpc(sb, "admin_confirm_payment", { p_order_id: o.id }), `Pix de ${who} confirmado.`)}>
           Confirmar {formatBRL(o.total_cents)}
+        </Button>
+      </Sheet>
+    );
+  }
+
+  if (action.kind === "ship") {
+    return (
+      <Sheet title={`Envio de ${who}`} onClose={onClose}>
+        <p className="text-sm text-muted">
+          {o.items.length} {o.items.length === 1 ? "carta" : "cartas"} para{" "}
+          {o.shipping_address
+            ? `${o.shipping_address.street}, ${o.shipping_address.number}${o.shipping_address.complement ? ` ${o.shipping_address.complement}` : ""}, ${o.shipping_address.district}, ${o.shipping_address.city}/${o.shipping_address.state}, CEP ${o.shipping_address.cep}`
+            : "endereço não informado"}
+          . {who} recebe o código no app.
+        </p>
+        <Field
+          label="Código de rastreio"
+          autoCapitalize="characters"
+          placeholder="AB123456789BR"
+          value={tracking}
+          onChange={(e) => (setTracking(e.target.value), setFieldError(null))}
+          error={fieldError}
+          maxLength={40}
+        />
+        <FormError message={error} />
+        <Button
+          block
+          className="min-h-[52px]"
+          pending={pending}
+          onClick={() => {
+            if (tracking.replace(/\s/g, "").length < 5) return setFieldError("Informe o código de rastreio");
+            void run(() => adminRpc(sb, "admin_ship_order", { p_order_id: o.id, p_tracking_code: tracking }), `Envio de ${who} registrado.`);
+          }}
+        >
+          {o.status === "shipped" ? "Salvar rastreio" : "Marcar como enviado"}
+        </Button>
+      </Sheet>
+    );
+  }
+
+  if (action.kind === "deliver") {
+    return (
+      <Sheet title="Marcar como entregue?" onClose={onClose}>
+        <p className="text-sm text-muted">Use quando o rastreio mostrar a entrega ou {who} confirmar que recebeu.</p>
+        <FormError message={error} />
+        <Button block variant="success" className="min-h-[52px]" pending={pending} onClick={() => void run(() => adminRpc(sb, "admin_mark_delivered", { p_order_id: o.id }), `Pedido de ${who} entregue.`)}>
+          Marcar entregue
         </Button>
       </Sheet>
     );

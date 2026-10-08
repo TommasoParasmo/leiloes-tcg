@@ -19,8 +19,11 @@ export interface Client {
   fullName: string;
   whatsapp: string;
   blocked: boolean;
+  /** Lote aberto (cartas guardadas), para o leiloeiro fechar. */
+  openLotId: string | null;
   storedCards: number;
   storedCents: number;
+  stored: { name: string; eventNumber: number; amountCents: number }[];
   penalties: { id: string; reason: string; issuedAt: string }[];
 }
 
@@ -32,7 +35,7 @@ const FILTERS: { id: Filter; label: string; test: (c: Client) => boolean }[] = [
   { id: "todos", label: "Todos", test: () => true },
 ];
 
-type Action = { kind: "unblock"; client: Client } | { kind: "remove"; client: Client; penaltyId: string };
+type Action = { kind: "unblock"; client: Client } | { kind: "remove"; client: Client; penaltyId: string } | { kind: "close"; client: Client; lotId: string };
 
 /** Compradores da loja: cartas guardadas, cartões amarelos e desbloqueio com justificativa. */
 export function ClientsList({ clients }: { clients: Client[] }) {
@@ -54,6 +57,7 @@ export function ClientsList({ clients }: { clients: Client[] }) {
 
   async function submit() {
     if (!action) return;
+    if (action.kind === "close") return closeLot(action.client, action.lotId);
     if (justification.trim().length < 5) return setError("Escreva a justificativa (mínimo 5 letras). Ela fica registrada.");
     setPending(true);
     setError(null);
@@ -65,6 +69,23 @@ export function ClientsList({ clients }: { clients: Client[] }) {
       if (!r.ok) setError(auctionMessage(r));
       else {
         setMessage(action.kind === "unblock" ? `${action.client.nickname} foi desbloqueado.` : "Cartão amarelo retirado.");
+        setAction(null);
+        router.refresh();
+      }
+    } catch {
+      setError("Sem conexão com o servidor. Nada foi alterado.");
+    }
+    setPending(false);
+  }
+
+  async function closeLot(client: Client, lotId: string) {
+    setPending(true);
+    setError(null);
+    try {
+      const r = await adminRpc(sb, "admin_close_lot", { p_lot_id: lotId });
+      if (!r.ok) setError(auctionMessage(r));
+      else {
+        setMessage(`Lote de ${client.nickname} fechado. O pedido está em Pedidos › Frete.`);
         setAction(null);
         router.refresh();
       }
@@ -104,9 +125,26 @@ export function ClientsList({ clients }: { clients: Client[] }) {
               {c.blocked ? <Pill tone="danger">Bloqueado</Pill> : c.penalties.length ? <Pill tone="warn">{c.penalties.length} amarelo</Pill> : null}
             </div>
             {c.storedCards > 0 && (
-              <p className="text-sm">
-                {c.storedCards} {c.storedCards === 1 ? "carta guardada" : "cartas guardadas"} · <b className="tabular">{formatBRL(c.storedCents)}</b>
-              </p>
+              <details className="group rounded-sm bg-surface-2/60 px-2.5 py-1.5">
+                <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-2 text-sm">
+                  <span>
+                    {c.storedCards} {c.storedCards === 1 ? "carta guardada" : "cartas guardadas"} · <b className="tabular">{formatBRL(c.storedCents)}</b>
+                  </span>
+                  <span aria-hidden className="text-xs text-muted transition-transform group-open:rotate-180">
+                    ▾
+                  </span>
+                </summary>
+                <ul className="flex flex-col gap-1 pb-1 pt-1 text-xs">
+                  {c.stored.map((s, i) => (
+                    <li key={i} className="flex justify-between gap-2">
+                      <span className="min-w-0 truncate">
+                        {s.name} <span className="text-muted">· #{s.eventNumber}</span>
+                      </span>
+                      <span className="shrink-0 tabular">{formatBRL(s.amountCents)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
             )}
             {c.penalties.map((p) => (
               <div key={p.id} className="flex items-center justify-between gap-2 rounded-sm bg-warn/10 px-2.5 py-1.5 text-xs">
@@ -127,6 +165,11 @@ export function ClientsList({ clients }: { clients: Client[] }) {
               >
                 WhatsApp
               </a>
+              {c.openLotId && c.storedCards > 0 && (
+                <button type="button" onClick={() => open({ kind: "close", client: c, lotId: c.openLotId! })} className="min-h-10 rounded-sm bg-surface-2 px-3 text-sm font-bold">
+                  Fechar lote
+                </button>
+              )}
               {c.blocked && (
                 <button type="button" onClick={() => open({ kind: "unblock", client: c })} className="min-h-10 rounded-sm bg-accent px-3 text-sm font-bold text-on-accent">
                   Desbloquear
@@ -137,7 +180,19 @@ export function ClientsList({ clients }: { clients: Client[] }) {
         ))}
       </ul>
 
-      {action && (
+      {action?.kind === "close" && (
+        <Sheet title={`Fechar o lote de ${action.client.nickname}?`} onClose={() => !pending && setAction(null)}>
+          <p className="text-sm text-muted">
+            {action.client.storedCards} {action.client.storedCards === 1 ? "carta" : "cartas"} ({formatBRL(action.client.storedCents)}) viram um pedido. Depois você informa o frete
+            em Pedidos e o comprador recebe o Pix. Não dá para desfazer.
+          </p>
+          <FormError message={error} />
+          <Button block className="min-h-[52px]" pending={pending} onClick={() => void submit()}>
+            Fechar lote
+          </Button>
+        </Sheet>
+      )}
+      {action && action.kind !== "close" && (
         <Sheet title={action.kind === "unblock" ? `Desbloquear ${action.client.nickname}?` : "Retirar cartão amarelo?"} onClose={() => !pending && setAction(null)}>
           <p className="text-sm text-muted">
             {action.kind === "unblock"

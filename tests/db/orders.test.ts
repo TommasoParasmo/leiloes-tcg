@@ -194,3 +194,66 @@ describe("cartão amarelo e bloqueio", () => {
     expect((await db.rpc(admin, "admin_add_round", [e, card_id, "speed", null, null, null, 900, "manual", null])).code).toBe("created");
   });
 });
+
+describe("painel: lote, envio e WhatsApp", () => {
+  it("leiloeiro não fecha lote de quem não tem endereço", async () => {
+    const [buyer] = await db.users(1);
+    await auction(buyer, 1000);
+    const lot = await lotOf(buyer);
+    expect((await db.rpc(admin, "admin_close_lot", [lot.id])).code).toBe("address_required");
+    expect((await lotOf(buyer)).status).toBe("open");
+  });
+
+  it("leiloeiro fecha o lote do comprador, registra envio e entrega", async () => {
+    const buyer = await buyerWithAddress();
+    await auction(buyer, 1000);
+    const lot = await lotOf(buyer);
+    expect((await db.rpc(buyer, "admin_close_lot", [lot.id])).code).toBe("forbidden");
+    const res = await db.rpc(admin, "admin_close_lot", [lot.id]);
+    expect(res.code).toBe("lot_closed");
+    expect((await db.rpc(admin, "admin_close_lot", [lot.id])).code).toBe("lot_already_closed");
+    const orderId = res.order_id as string;
+
+    expect((await db.rpc(admin, "admin_ship_order", [orderId, "AB123456789BR"])).code).toBe("order_wrong_status");
+    await db.rpc(admin, "admin_quote_shipping", [orderId, 500, "PAC", 5]);
+    await db.rpc(admin, "admin_confirm_payment", [orderId]);
+    expect((await db.rpc(admin, "admin_ship_order", [orderId, " "])).code).toBe("tracking_required");
+    expect((await db.rpc(admin, "admin_ship_order", [orderId, "ab 123456789 br"])).code).toBe("shipped");
+    const [s] = await db.sql<{ tracking_code: string; status: string }>(`select tracking_code, status from shipments where order_id = $1`, [orderId]);
+    expect(s).toEqual({ tracking_code: "AB123456789BR", status: "posted" });
+    const [w] = await db.sql<{ status: string }>(`select status from wins where user_id = $1`, [buyer]);
+    expect(w.status).toBe("shipped");
+    const notes = await db.sql<{ kind: string }>(`select kind from notifications where user_id = $1`, [buyer]);
+    expect(notes.map((n) => n.kind)).toContain("order_shipped");
+
+    expect((await db.rpc(admin, "admin_mark_delivered", [orderId])).code).toBe("delivered");
+    expect((await orderOf(buyer)).status).toBe("delivered");
+  });
+
+  it("rodada sem lances gera mensagem; erro volta para a fila; mensagem pode ser descartada", async () => {
+    const e = await db.event(seller, number++);
+    const r = await db.round(seller, e);
+    await db.rpc(admin, "admin_open_round", [r]);
+    await db.rpc(admin, "admin_close_round", [r]);
+    const [m] = await db.sql<{ id: string; status: string; payload: { winner_nickname: string | null } }>(
+      `select id, status, payload from whatsapp_messages where round_id = $1`,
+      [r],
+    );
+    expect([m.status, m.payload.winner_nickname]).toEqual(["manual_pending", null]);
+
+    expect((await db.rpc(admin, "admin_whatsapp_requeue", [m.id])).code).toBe("message_already_done");
+    await db.rpc(admin, "admin_whatsapp_mark", [m.id, false, "Grupo fora do ar"]);
+    expect((await db.rpc(admin, "admin_whatsapp_requeue", [m.id])).code).toBe("requeued");
+    expect((await db.sql<{ status: string }>(`select status from whatsapp_messages where id = $1`, [m.id]))[0].status).toBe("manual_pending");
+    expect((await db.rpc(admin, "admin_whatsapp_dismiss", [m.id])).code).toBe("dismissed");
+    expect((await db.rpc(admin, "admin_whatsapp_dismiss", [m.id])).code).toBe("message_already_done");
+  });
+
+  it("status e número do evento não mudam direto pela tabela", async () => {
+    const e = await db.event(seller, number++);
+    const err = await db.as(admin, (c) => c.query(`update events set status = 'finished', number = 999 where id = $1`, [e])).catch((x: Error) => x);
+    expect(err).toBeInstanceOf(Error);
+    const [row] = await db.sql<{ status: string; number: number }>(`select status, number from events where id = $1`, [e]);
+    expect(row.status).toBe("scheduled");
+  });
+});

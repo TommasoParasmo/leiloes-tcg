@@ -77,7 +77,12 @@ export type AuctionCode =
   | "card_unavailable"
   | "event_already_published"
   | "message_not_found"
-  | "message_already_done";
+  | "message_already_done"
+  | "tracking_required"
+  | "shipped"
+  | "delivered"
+  | "requeued"
+  | "dismissed";
 
 export interface AuctionResult {
   ok: boolean;
@@ -161,6 +166,8 @@ export function auctionMessage(result: Pick<AuctionResult, "code" | "min_cents" 
       return "Cadastre um endereço de entrega antes de fechar o lote";
     case "order_not_found":
       return "Pedido não encontrado";
+    case "tracking_required":
+      return "Informe o código de rastreio";
     case "order_wrong_status":
       return "O pedido mudou enquanto você olhava. Recarregue a página";
     case "penalty_not_found":
