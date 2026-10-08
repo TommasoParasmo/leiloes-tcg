@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: "Controle do evento · Bate Carta" };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export default function EventoPage({ params }: PageProps<"/painel/eventos/[id]">) {
+export default function EventoPage({ params, searchParams }: PageProps<"/painel/eventos/[id]">) {
   return (
     <Suspense
       fallback={
@@ -22,13 +22,15 @@ export default function EventoPage({ params }: PageProps<"/painel/eventos/[id]">
         </>
       }
     >
-      <Evento params={params} />
+      <Evento params={params} searchParams={searchParams} />
     </Suspense>
   );
 }
 
-async function Evento({ params }: { params: PageProps<"/painel/eventos/[id]">["params"] }) {
+async function Evento({ params, searchParams }: Pick<PageProps<"/painel/eventos/[id]">, "params" | "searchParams">) {
   const { id } = await params;
+  const { carta } = await searchParams;
+  const newCardId = typeof carta === "string" && UUID.test(carta) ? carta : undefined;
   if (!UUID.test(id)) notFound();
   const { sb, sellerId } = await requireAdmin(`/painel/eventos/${id}`);
   const { data } = await sb.from("events").select("id, number, title, status, share_slug, seller_id").eq("id", id).maybeSingle();
@@ -60,7 +62,7 @@ async function Evento({ params }: { params: PageProps<"/painel/eventos/[id]">["p
         }
       />
       <p className="mx-auto -mt-1 w-full max-w-md truncate px-4 text-sm text-muted">{event.title}</p>
-      <EventControl event={event} sellerId={sellerId} />
+      <EventControl event={event} sellerId={sellerId} newCardId={newCardId} />
     </>
   );
 }

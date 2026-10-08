@@ -7,6 +7,8 @@ import { useEffect, useRef } from "react";
  */
 export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null);
+  // fechamento feito pela limpeza do efeito (tela escondida ou remontagem), não pela pessoa
+  const silentClose = useRef(false);
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
@@ -15,7 +17,10 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
     const previous = html.style.overflow;
     html.style.overflow = "hidden";
     return () => {
-      // sem dialog.close() aqui: o evento "close" fecharia de novo na remontagem do StrictMode
+      // a navegação do Next pode esconder a tela sem desmontar: um modal aberto deixaria a
+      // página seguinte sem receber toques. Fecha sem avisar onClose; ao voltar, reabre.
+      silentClose.current = true;
+      dialog.close();
       html.style.overflow = previous;
     };
   }, []);
@@ -23,7 +28,13 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
   return (
     <dialog
       ref={ref}
-      onClose={onClose}
+      onClose={() => {
+        if (silentClose.current) {
+          silentClose.current = false;
+          return;
+        }
+        onClose();
+      }}
       aria-label={title}
       onClick={(e) => {
         // toque no fundo escuro (fora do conteúdo) fecha

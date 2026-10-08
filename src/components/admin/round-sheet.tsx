@@ -1,5 +1,6 @@
 "use client";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ChipButton, ChoiceChips, MultiChips, Stepper } from "@/components/ui/chips";
@@ -43,6 +44,7 @@ export function RoundSheet({
   ordinal,
   cards,
   editing,
+  initialCard,
   onSaved,
   onClose,
 }: {
@@ -52,10 +54,12 @@ export function RoundSheet({
   ordinal: number;
   cards: FreeCard[];
   editing?: QueueRound;
+  /** Carta já escolhida (acabou de ser cadastrada a partir deste evento). */
+  initialCard?: { id: string; name: string };
   onSaved: (message: string) => void;
   onClose: () => void;
 }) {
-  const [card, setCard] = useState<{ id: string; name: string } | null>(editing ? { id: editing.card.id, name: editing.card.name } : null);
+  const [card, setCard] = useState<{ id: string; name: string } | null>(editing ? { id: editing.card.id, name: editing.card.name } : (initialCard ?? null));
   const [mode, setMode] = useState<Mode>(editing ? (editing.mode === "speed" ? "speed" : editing.bid_options_cents?.length ? "options" : "increments") : "increments");
   const [start, setStart] = useState(editing?.start_price_cents ?? 500);
   const [increments, setIncrements] = useState<number[]>(editing?.increments_cents ?? [100, 200, 500]);
@@ -140,6 +144,15 @@ export function RoundSheet({
   if (!card) {
     return (
       <Sheet title={title} onClose={onClose}>
+        {/* cadastra e volta para cá com a carta escolhida; ela também fica em Cartas */}
+        <Link
+          href={`/painel/cartas/nova?evento=${eventId}`}
+          // fecha o painel antes: com o <dialog> modal aberto, a página seguinte não recebe toques
+          onClick={onClose}
+          className="mb-2 flex min-h-12 items-center justify-center gap-1.5 rounded-sm border-2 border-dashed border-line text-sm font-bold text-accent-text"
+        >
+          <span aria-hidden>+</span> Cadastrar carta nova
+        </Link>
         {cards.length ? (
           <ul className="flex flex-col gap-1.5">
             {cards.map((c) => (
@@ -163,7 +176,7 @@ export function RoundSheet({
             ))}
           </ul>
         ) : (
-          <p className="pb-2 text-sm text-muted">Todas as suas cartas já estão em eventos. Cadastre novas em Cartas.</p>
+          <p className="pb-2 text-sm text-muted">Todas as suas cartas já estão em eventos. Cadastre uma nova acima.</p>
         )}
       </Sheet>
     );
