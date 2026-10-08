@@ -46,7 +46,12 @@ async function HomeContent() {
       <main className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 pb-28">
         {live ? (
           <section className="relative overflow-hidden rounded-lg border border-line">
-            <Image src="/brand/hero.jpg" alt="" fill priority sizes="(max-width: 448px) 100vw, 448px" className="object-cover" />
+            {live.cover_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={live.cover_url} alt="" className="absolute inset-0 size-full object-cover" />
+            ) : (
+              <Image src="/brand/hero.jpg" alt="" fill priority sizes="(max-width: 448px) 100vw, 448px" className="object-cover" />
+            )}
             <span aria-hidden className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent,rgba(9,10,18,.95)_40%),linear-gradient(135deg,rgba(124,92,255,.35),transparent)]" />
             <div className="theme-dark-scope relative flex min-h-[300px] flex-col justify-end gap-2 p-4">
               <Pill tone="live" dot className="self-start">

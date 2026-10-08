@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { randomUUID } from "node:crypto";
 import { key, TestDb } from "./helpers";
 
 let db: TestDb;
@@ -201,5 +202,20 @@ describe("painel do leiloeiro", () => {
     const [w] = await db.sql<{ user_id: string }>(`select user_id from wins where round_id = $1`, [r]);
     expect(w.user_id).toBe(fresh);
     expect((await db.rpc(null, "close_round_if_expired", [r])).code).toBe("not_expired");
+  });
+});
+
+describe("imagem de fundo do evento", () => {
+  it("só o leiloeiro troca, e só com arquivo na pasta do evento", async () => {
+    const { id } = (await db.rpc(admin, "admin_create_event", ["Com capa", null])) as { id: string };
+    const ok = `${seller}/eventos/${id}/capa-1a2b3c4d.jpg`;
+    expect((await db.rpc(buyer, "admin_set_event_cover", [id, ok])).code).toBe("forbidden");
+    expect((await db.rpc(admin, "admin_set_event_cover", [id, `${seller}/eventos/${randomUUID()}/x.jpg`])).code).toBe("invalid_request");
+    expect((await db.rpc(admin, "admin_set_event_cover", [id, `${seller}/eventos/${id}/../x.jpg`])).code).toBe("invalid_request");
+    expect((await db.rpc(admin, "admin_set_event_cover", [id, ok])).code).toBe("saved");
+    const [ev] = await db.sql<{ cover_path: string | null }>(`select cover_path from events where id = $1`, [id]);
+    expect(ev.cover_path).toBe(ok);
+    expect(await db.rpc(admin, "admin_set_event_cover", [id, null])).toMatchObject({ ok: true, previous: ok });
+    await expect(db.rpc(null, "admin_set_event_cover", [id, null])).rejects.toThrow(/permission denied/);
   });
 });
