@@ -7,6 +7,8 @@ const base: RoundState = {
   event_id: "e",
   card_id: "c",
   position: 7,
+  ordinal: 7,
+  round_total: 22,
   mode: "highest_bid",
   status: "open",
   start_price_cents: 600,

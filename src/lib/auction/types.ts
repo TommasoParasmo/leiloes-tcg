@@ -15,6 +15,9 @@ export interface RoundState {
   event_id: string;
   card_id: string;
   position: number;
+  /** Ordem da carta no evento (1..round_total). */
+  ordinal: number;
+  round_total: number;
   mode: AuctionMode;
   status: RoundStatus;
   start_price_cents: number | null;

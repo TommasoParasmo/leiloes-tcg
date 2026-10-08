@@ -22,7 +22,11 @@ export function BidBox({ state, remaining, progress, tone }: { state: RoundState
         <div className="min-w-0">
           <Kicker>Lance atual</Kicker>
           <p aria-live="polite" className="font-display text-3xl font-extrabold tabular leading-tight">
-            {state.current_amount_cents != null ? formatBRL(state.current_amount_cents) : formatBRL(state.start_price_cents ?? 0)}
+            {state.current_amount_cents != null
+              ? formatBRL(state.current_amount_cents)
+              : state.start_price_cents != null
+                ? formatBRL(state.start_price_cents)
+                : "Sem lances"}
           </p>
           <p className="truncate text-sm text-muted">
             {tone === "leading" ? (
@@ -31,8 +35,10 @@ export function BidBox({ state, remaining, progress, tone }: { state: RoundState
               <>
                 Liderando: <b className="text-text">{state.leading_nickname}</b>
               </>
-            ) : (
+            ) : state.start_price_cents != null ? (
               "Lance inicial"
+            ) : (
+              "Escolha uma opção abaixo"
             )}
           </p>
         </div>

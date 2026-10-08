@@ -85,7 +85,7 @@ export function LiveRoom({ event, initialRound, initialCard }: { event: EventInf
     );
   }
 
-  const label = `Leilão #${event.number} · ${round.position}/${event.total_rounds}`;
+  const label = `Leilão #${event.number} · ${round.ordinal}/${round.round_total}`;
   const closed = round.status === "closed" || round.status === "cancelled";
   const iWon = round.status === "closed" && round.leading_is_me;
   const block = round.my_block;

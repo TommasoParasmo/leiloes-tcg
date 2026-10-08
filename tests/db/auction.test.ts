@@ -249,6 +249,15 @@ describe("Permissões e participação", () => {
     expect((await db.rpc(ok, "round_public_state", [roundId])).my_block).toBeNull();
   });
 
+  it("estado da rodada conta a carta dentro do evento mesmo com lacunas de posição", async () => {
+    const eventId = await db.event(seller, eventNumber++);
+    await db.round(seller, eventId, { position: 3 });
+    const second = await db.round(seller, eventId, { position: 10 });
+    await db.round(seller, eventId, { position: 20 });
+    const state = await db.rpc(null, "round_public_state", [second]);
+    expect([state.ordinal, state.round_total]).toEqual([2, 3]);
+  });
+
   it("admin não cria rodada com evento ou carta de outro leiloeiro", async () => {
     const other = await db.seller();
     const otherAdmin = await db.user({ role: "admin", sellerId: other });
