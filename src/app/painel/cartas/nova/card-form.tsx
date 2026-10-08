@@ -146,17 +146,22 @@ export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: st
     const sb = createClient();
     const cardId = crypto.randomUUID();
     const uploaded: string[] = [];
+    let cardSent = false;
     try {
       // fotos primeiro: se alguma falhar, a carta não fica cadastrada sem imagem
       for (const [i, p] of photos.entries()) {
         const blob = await withTimeout(shrinkPhoto(p.file), 30_000);
         const path = `${sellerId}/${cardId}/${i + 1}-${crypto.randomUUID().slice(0, 8)}.jpg`;
+        // anotado antes de enviar: se o envio estourar o prazo e chegar depois, a limpeza abaixo ainda apaga
+        uploaded.push(path);
         // rede de celular pode travar sem erro: desiste e avisa em vez de girar para sempre
         const { error } = await withTimeout(sb.storage.from(CARD_PHOTOS_BUCKET).upload(path, blob, { contentType: "image/jpeg", cacheControl: "31536000" }), 60_000);
         if (error) throw error;
-        uploaded.push(path);
       }
-      const { error: cardError } = await withTimeout(sb.from("cards").insert({
+      cardSent = true;
+      const { error: cardError } = await sb
+        .from("cards")
+        .insert({
         id: cardId,
         seller_id: sellerId,
         name: values.name.trim(),
@@ -168,7 +173,9 @@ export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: st
         condition: values.condition || null,
         liga_price_cents: liga,
         notes: values.notes.trim() || null,
-      }), 30_000);
+      })
+        // cancela de verdade a gravação que travar (o servidor desiste em vez de gravar depois)
+        .abortSignal(AbortSignal.timeout(30_000));
       if (cardError) throw cardError;
       const { error: photoError } = await sb.from("card_photos").insert(uploaded.map((storage_path, position) => ({ card_id: cardId, storage_path, position })));
       if (photoError) {
@@ -176,6 +183,8 @@ export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: st
         throw photoError;
       }
     } catch {
+      // a carta pode ter sido gravada mesmo com a resposta perdida: apaga para não ficar sem fotos
+      if (cardSent) await sb.from("cards").delete().eq("id", cardId);
       if (uploaded.length) await sb.storage.from(CARD_PHOTOS_BUCKET).remove(uploaded);
       setFormError("Não foi possível salvar a carta. Confira a conexão e tente de novo.");
       setPending(null);
