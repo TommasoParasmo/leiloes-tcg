@@ -130,6 +130,54 @@ describe("Modo A — maior lance", () => {
     expect(closed.winner_nickname).toBe("Joao");
   });
 
+  it("rapidez com opções: o maior valor arremata na hora; sem ele, vale o maior lance no fim", async () => {
+    const [tom, naiara, bia] = await Promise.all([db.user({ nickname: "Tom" }), db.user({ nickname: "Naiara" }), db.user({ nickname: "Bia" })]);
+
+    // ninguém chega no 13: Naiara (12) leva quando o leiloeiro encerra
+    const a = await openRound({ options: [1000, 1100, 1200, 1300], fixedPrice: 1300 });
+    expect((await db.rpc(tom, "place_bid", [a.roundId, 1100, key()])).code).toBe("leading");
+    expect((await db.rpc(naiara, "place_bid", [a.roundId, 1200, key()])).code).toBe("leading");
+    expect((await db.rpc(admin, "admin_close_round", [a.roundId])).winner_nickname).toBe("Naiara");
+
+    // alguém vai direto no 13: arremata na hora, mesmo com tempo sobrando
+    const b = await openRound({ options: [1000, 1100, 1200, 1300], fixedPrice: 1300, timer: 60 });
+    expect((await db.rpc(tom, "place_bid", [b.roundId, 1100, key()])).code).toBe("leading");
+    const [first, second] = [
+      await db.rpc(bia, "place_bid", [b.roundId, 1300, key()]),
+      await db.rpc(naiara, "place_bid", [b.roundId, 1300, key()]),
+    ];
+    expect(first.code).toBe("won");
+    expect(second.code).toBe("round_closed");
+    const [win] = await db.sql<{ nickname: string; amount_cents: number }>(
+      "select p.nickname, w.amount_cents::int from wins w join profiles p on p.id = w.user_id where w.round_id = $1",
+      [b.roundId],
+    );
+    expect(win).toEqual({ nickname: "Bia", amount_cents: 1300 });
+
+    // quem já lidera ainda pode ir no 13 e arrematar; um valor menor continua barrado
+    const c = await openRound({ options: [1000, 1100, 1200, 1300], fixedPrice: 1300 });
+    expect((await db.rpc(tom, "place_bid", [c.roundId, 1100, key()])).code).toBe("leading");
+    expect((await db.rpc(tom, "place_bid", [c.roundId, 1200, key()])).code).toBe("already_leading");
+    expect((await db.rpc(tom, "place_bid", [c.roundId, 1300, key()])).code).toBe("won");
+  });
+
+  it("rapidez com opções: 30 toques simultâneos no maior valor geram um só vencedor", async () => {
+    const { roundId } = await openRound({ options: [1000, 1300], fixedPrice: 1300 });
+    const buyers = await Promise.all(Array.from({ length: 30 }, (_, i) => db.user({ nickname: `t${i}_${key().slice(0, 6)}` })));
+    const results = await Promise.all(buyers.map((u) => db.rpc(u, "place_bid", [roundId, 1300, key()])));
+    expect(results.filter((r) => r.code === "won")).toHaveLength(1);
+    const [{ n }] = await db.sql<{ n: number }>("select count(*)::int n from wins where round_id = $1", [roundId]);
+    expect(n).toBe(1);
+  });
+
+  it("valor de arremate na hora só vale com opções e precisa ser o maior", async () => {
+    const eventId = await db.event(seller, eventNumber++);
+    await expect(db.round(seller, eventId, { options: [1000, 1300], fixedPrice: 1200 })).rejects.toThrow(/instant_price_needs_options/);
+    await expect(db.round(seller, eventId, { fixedPrice: 1200 })).rejects.toThrow(/instant_price_needs_options/);
+    await expect(db.round(seller, eventId, { options: [1000, 1100, 1200, 1300, 1400], fixedPrice: 1400 })).rejects.toThrow(/instant_price_needs_options/);
+    await expect(db.round(seller, eventId, { options: [], fixedPrice: 1200 })).rejects.toThrow(/instant_price_needs_options/);
+  });
+
   it("valida limites de valor e não deixa o líder cobrir o próprio lance", async () => {
     const { roundId } = await openRound({ startPrice: 600, increments: [100, 200, 500] });
     const [a, b] = await db.users(2);

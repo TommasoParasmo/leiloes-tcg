@@ -25,7 +25,11 @@ export default function TermosPage() {
       <ul>
         <li>O resultado vale pelo que o servidor registrou, não pelo que aparece na sua tela. Em caso de empate no valor, vence quem lançou primeiro.</li>
         <li>No modo de maior lance, um lance que assume a liderança nos últimos 5 segundos acrescenta 10 segundos ao cronômetro.</li>
-        <li>No modo rapidez, a carta fica com quem tocar em Arrematar primeiro.</li>
+        <li>No modo rapidez com preço único, a carta fica com quem tocar em Arrematar primeiro.</li>
+        <li>
+          No modo rapidez com opções, quem tocar primeiro no maior valor arremata na hora. Se ninguém escolher o maior valor, a carta fica com o maior lance quando a rodada
+          encerrar.
+        </li>
         <li>Todo lance e todo arremate é um compromisso de compra. Não há desistência depois de arrematar.</li>
         <li>O leiloeiro pode pausar, estender ou cancelar uma rodada; uma rodada cancelada não gera venda.</li>
       </ul>

@@ -27,7 +27,8 @@ export function bidChoices(state: RoundState): BidChoice[] {
     return options.map((amount) => ({
       amount_cents: amount,
       increment_cents: null,
-      disabled: closed || state.leading_is_me || (current != null && amount <= current),
+      // quem lidera ainda pode tocar no valor que arremata na hora
+      disabled: closed || (state.leading_is_me && !(state.fixed_price_cents != null && amount >= state.fixed_price_cents)) || (current != null && amount <= current),
       primary: amount === firstValid,
     }));
   }
