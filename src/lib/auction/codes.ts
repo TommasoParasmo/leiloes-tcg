@@ -82,7 +82,12 @@ export type AuctionCode =
   | "shipped"
   | "delivered"
   | "requeued"
-  | "dismissed";
+  | "dismissed"
+  | "rate_limited"
+  | "terms_required"
+  | "pending_lot"
+  | "pending_orders"
+  | "account_deleted";
 
 export interface AuctionResult {
   ok: boolean;
@@ -190,6 +195,14 @@ export function auctionMessage(result: Pick<AuctionResult, "code" | "min_cents" 
       return "Essa mensagem já foi marcada";
     case "invalid_request":
       return "Confira os dados e tente de novo";
+    case "rate_limited":
+      return "Muitas tentativas seguidas. Espere alguns segundos";
+    case "terms_required":
+      return "Aceite os termos de uso e a política de privacidade para continuar";
+    case "pending_lot":
+      return "Você tem cartas guardadas no lote. Feche o lote e conclua o pedido antes de excluir a conta";
+    case "pending_orders":
+      return "Você tem um pedido em andamento. Conclua ou cancele antes de excluir a conta";
     default:
       return "Não foi possível concluir. Tente novamente";
   }

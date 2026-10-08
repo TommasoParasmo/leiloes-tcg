@@ -22,6 +22,7 @@ const meta = (overrides: Record<string, unknown> = {}) => ({
     city: "São Paulo",
     state: "sp",
   },
+  terms_version: "2026-10-08",
   ...overrides,
 });
 
@@ -75,6 +76,13 @@ describe("cadastro", () => {
     expect((await db.rpc(buyer, "complete_profile", ["390.533.447-05"])).code).toBe("saved");
     expect((await db.rpc(buyer, "complete_profile", ["390.533.447-05"])).code).toBe("cpf_already_set");
     expect((await db.rpc(buyer, "place_bid", [r, 600, "chave-cpf-2"])).code).toBe("leading");
+  });
+
+  it("cadastro exige o aceite dos termos e grava a data", async () => {
+    await expect(signUp(meta({ terms_version: undefined }))).rejects.toThrow(/terms_required/);
+    const [u] = await signUp(meta());
+    const [p] = await db.sql(`select terms_version, terms_accepted_at is not null as accepted from profiles where id = $1`, [u.id]);
+    expect(p).toEqual({ terms_version: "2026-10-08", accepted: true });
   });
 
   it("ninguém se cadastra como admin pelo formulário", async () => {

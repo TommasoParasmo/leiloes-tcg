@@ -9,6 +9,7 @@ import { AccumulationCard } from "@/components/accumulation-card";
 import { Pill } from "@/components/ui/pill";
 import { myLots } from "@/lib/buyer";
 import { createClient } from "@/lib/supabase/server";
+import { DeleteAccount } from "./delete-account";
 import { formatWhatsapp, formatCep } from "@/lib/validation";
 
 export const metadata: Metadata = { title: "Conta · Bate Carta" };
@@ -155,7 +156,17 @@ async function Conta() {
               Sair
             </button>
           </form>
+          {profile?.role !== "admin" && <DeleteAccount />}
         </div>
+        <p className="text-center text-xs text-muted">
+          <Link href="/termos" className="underline">
+            Termos de uso
+          </Link>
+          {" · "}
+          <Link href="/privacidade" className="underline">
+            Privacidade
+          </Link>
+        </p>
       </main>
   );
 }
