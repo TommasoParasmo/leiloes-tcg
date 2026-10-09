@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { AdminNav, StoreLink } from "@/components/admin/admin-nav";
 import { WhatsappQueue, type QueueMessage } from "@/components/admin/whatsapp-queue";
 import { AppBar } from "@/components/layout/app-bar";
 import { PageLoading } from "@/components/ui/page-loading";
@@ -14,8 +13,7 @@ export const metadata: Metadata = { title: "WhatsApp · Painel · Bate Carta" };
 export default function WhatsappPage() {
   return (
     <>
-      <AppBar right={<StoreLink />} />
-      <AdminNav active="whatsapp" />
+      <AppBar back="/painel" title="WhatsApp" />
       <Suspense fallback={<PageLoading />}>
         <Fila />
       </Suspense>
