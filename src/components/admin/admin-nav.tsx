@@ -34,3 +34,12 @@ export function AdminNav({ active }: { active: AdminTab }) {
     </nav>
   );
 }
+
+/** Atalho no topo do painel para os dados da loja (Pix e CEP de envio). */
+export function StoreLink() {
+  return (
+    <Link href="/painel/loja" className="flex min-h-12 items-center">
+      <span className="rounded-pill bg-surface-2 px-3 py-1.5 text-xs font-bold">Minha loja</span>
+    </Link>
+  );
+}

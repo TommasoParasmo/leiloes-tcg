@@ -13,6 +13,7 @@ import { formatBRL, parseBRL } from "@/lib/money";
 import { formatDue, ORDER_STATUS, PROOFS_BUCKET, type Order, type OrderStatus } from "@/lib/orders";
 import { createClient } from "@/lib/supabase/client";
 import { formatWhatsapp } from "@/lib/validation";
+import { SuperfreteQuote } from "./superfrete-quote";
 
 type Tab = "frete" | "pix" | "comprovante" | "pagos" | "enviados" | "cancelados";
 const TABS: { id: Tab; label: string; statuses: OrderStatus[] }[] = [
@@ -206,6 +207,22 @@ function ActionSheet({ action, sb, onClose, onDone }: { action: Action; sb: Retu
         <p className="text-sm text-muted">
           {o.items.length} {o.items.length === 1 ? "carta" : "cartas"} para {o.shipping_address ? `${o.shipping_address.city}/${o.shipping_address.state}, CEP ${o.shipping_address.cep}` : "endereço não informado"}.
         </p>
+        {o.shipping_address && (
+          <SuperfreteQuote
+            orderId={o.id}
+            onPick={(q) => {
+              setPrice((q.priceCents / 100).toFixed(2).replace(".", ","));
+              setService(q.name);
+              setDays(q.days ? String(q.days) : "");
+              setFieldError(null);
+            }}
+            onClear={() => {
+              setPrice("");
+              setService("");
+              setDays("");
+            }}
+          />
+        )}
         <div className="grid grid-cols-2 gap-2">
           <Field label="Valor do frete (R$)" inputMode="decimal" placeholder="22,90" value={price} onChange={(e) => (setPrice(e.target.value), setFieldError(null))} error={fieldError} />
           <Field label="Prazo (dias)" inputMode="numeric" placeholder="6" value={days} onChange={(e) => setDays(e.target.value.replace(/\D/g, ""))} />
