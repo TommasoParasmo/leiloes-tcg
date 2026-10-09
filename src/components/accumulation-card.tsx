@@ -3,14 +3,14 @@ import type { Lot } from "@/lib/buyer";
 import { cn } from "@/lib/cn";
 import { formatBRL } from "@/lib/money";
 
-/** Cartas guardadas com o leiloeiro e o contador de acumulação (design §5 AccumulationCard). */
+/** Cartas ganhas guardadas com o leiloeiro e quantos leilões ainda cabem (design §5 AccumulationCard). */
 export function AccumulationCard({ lot, headingLevel = 2 }: { lot: Lot; headingLevel?: 2 | 3 }) {
   const Heading = headingLevel === 2 ? "h2" : "h3";
   const used = Math.min(lot.events_used, lot.max_events);
   return (
     <section className="rounded-md border border-line bg-surface p-4">
       <div className="flex items-center justify-between gap-2">
-        <Heading className="font-bold">{lot.status === "open" ? "Cartas acumuladas" : `Lote desde o Leilão #${lot.first_event_number}`}</Heading>
+        <Heading className="font-bold">{lot.status === "open" ? "Suas cartas" : `Lote desde o Leilão #${lot.first_event_number}`}</Heading>
         {lot.must_close ? (
           <Pill tone="warn">
             {used}/{lot.max_events} · fechar agora
@@ -28,8 +28,8 @@ export function AccumulationCard({ lot, headingLevel = 2 }: { lot: Lot; headingL
       </div>
       <p className="mt-2 text-xs text-muted">
         {lot.must_close
-          ? "Você chegou ao limite de acumulação. Feche o lote (pagamento e envio) antes de participar de outro leilão."
-          : `Desde o Leilão #${lot.first_event_number}. Você pode acumular por até ${lot.max_events} leilões seguidos.`}
+          ? `Você já tem cartas de ${lot.max_events} leilões. Pague estas para voltar a dar lance.`
+          : `Pague agora ou tudo junto no fim, com um frete só. Dá para juntar cartas de até ${lot.max_events} leilões.`}
       </p>
       <ul className="mt-3 flex flex-col gap-2">
         {lot.wins.map((w) => (

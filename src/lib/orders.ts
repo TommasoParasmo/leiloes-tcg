@@ -9,7 +9,7 @@ export type OrderStatus = "awaiting_shipping_quote" | "awaiting_payment" | "proo
 export const ORDER_STATUS: Record<OrderStatus, { label: string; tone: PillTone }> = {
   awaiting_shipping_quote: { label: "Calculando frete", tone: "neutral" },
   awaiting_payment: { label: "Aguardando Pix", tone: "warn" },
-  proof_sent: { label: "Comprovante enviado", tone: "acc" },
+  proof_sent: { label: "Avisou que pagou", tone: "acc" },
   paid: { label: "Pago", tone: "win" },
   shipped: { label: "Enviado", tone: "win" },
   delivered: { label: "Entregue", tone: "win" },

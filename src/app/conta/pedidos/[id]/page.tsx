@@ -51,7 +51,7 @@ async function Pedido({ params }: { params: PageProps<"/conta/pedidos/[id]">["pa
       {order.notes && order.status === "awaiting_payment" && (
         <p className="rounded-md bg-danger/10 p-3 text-sm text-danger">Comprovante não confirmado: {order.notes}</p>
       )}
-      {order.status === "proof_sent" && <p className="rounded-md bg-accent/10 p-3 text-sm">Recebemos seu comprovante. O leiloeiro confirma o Pix e avisa você.</p>}
+      {order.status === "proof_sent" && <p className="rounded-md bg-accent/10 p-3 text-sm">Recebemos seu aviso. O leiloeiro confere o Pix e confirma.</p>}
       {order.status === "paid" && <p className="rounded-md bg-win/10 p-3 text-sm text-win">Pagamento confirmado. Agora é com o envio.</p>}
       {order.status === "cancelled" && order.notes && <p className="rounded-md bg-danger/10 p-3 text-sm text-danger">Pedido cancelado: {order.notes}</p>}
 
