@@ -8,6 +8,7 @@ import { Select, TextArea } from "@/components/ui/select";
 import { CARD_PHOTOS_BUCKET } from "@/lib/auction/data";
 import { canOpenPhoto, shrinkPhoto, withTimeout } from "@/lib/image";
 import { PokemonLookup } from "./pokemon-lookup";
+import { cardSummary } from "@/lib/card-summary";
 import { parseBRL } from "@/lib/money";
 import { createClient } from "@/lib/supabase/client";
 
@@ -66,7 +67,8 @@ export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: st
   const [pending, setPending] = useState<"stay" | "leave" | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const cameraInput = useRef<HTMLInputElement>(null);
-  const nameInput = useRef<HTMLDivElement>(null);
+  // idioma, condição, preço e o resto ficam escondidos: PT e NM já vêm marcados
+  const [more, setMore] = useState(false);
 
   // libera as prévias quando a tela fecha
   const latest = useRef(photos);
@@ -137,6 +139,7 @@ export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: st
       liga: values.liga.trim() && liga == null ? "Use o formato 12,50" : undefined,
     };
     setErrors(errs);
+    if (errs.liga) setMore(true);
     if (Object.values(errs).some(Boolean)) {
       setFormError("Confira os campos destacados.");
       return;
@@ -199,6 +202,7 @@ export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: st
     setPhotos([]);
     setValues((s) => ({ ...empty, tcg: s.tcg, collection: s.collection, language: s.language, condition: s.condition }));
     setTouched(false);
+    setMore(false);
     setDraftDecided(true);
     setErrors({});
     setPending(null);
@@ -208,8 +212,8 @@ export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: st
       router.refresh();
       return;
     }
-    setSaved(`${name} salva. Cadastre a próxima.`);
-    nameInput.current?.querySelector("input")?.focus();
+    setSaved(`${name} salva. Tire a foto da próxima.`);
+    // volta para o quadro da câmera (abrir a câmera sozinho o celular não deixa: precisa do toque)
     window.scrollTo({ top: 0 });
   }
 
@@ -261,66 +265,84 @@ export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: st
         </div>
       )}
 
-      <section aria-labelledby="fotos-label" className="flex flex-col gap-1.5">
-        <p id="fotos-label" className="text-xs font-semibold text-muted">
-          Fotos (até {MAX_PHOTOS})
-        </p>
-        <div className="grid grid-cols-4 gap-2">
-          {photos.map((p, i) => (
-            <div key={p.url} className="relative">
-              {i === 0 ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={p.url} alt="Foto 1, capa" className="aspect-[63/88] w-full rounded-sm border-2 border-accent object-cover" />
-              ) : (
-                <button type="button" onClick={() => makeCover(i)} aria-label={`Usar foto ${i + 1} como capa`} className="block w-full">
+      <section aria-label="Fotos" className="flex flex-col items-center gap-2">
+        {photos.length ? (
+          <div className="relative w-[62%]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photos[0].url} alt="Foto da carta" className="aspect-[63/88] w-full rounded-md border-2 border-accent object-cover" />
+            <button
+              type="button"
+              onClick={() => removePhoto(0)}
+              aria-label="Remover foto"
+              className="absolute -right-3 -top-3 grid size-10 place-items-center rounded-full border border-line bg-bg text-base"
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          // um toque abre a câmera traseira no celular (no computador abre a escolha de arquivo)
+          <label className="grid aspect-[63/88] w-[62%] cursor-pointer place-items-center rounded-md border-2 border-dashed border-accent/70 bg-accent/10 text-center font-bold text-accent-text has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent">
+            <span className="flex flex-col items-center gap-2 px-3">
+              <svg aria-hidden viewBox="0 0 24 24" className="size-12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
+                <circle cx="12" cy="13.5" r="3.5" />
+              </svg>
+              <span className="text-lg">Tirar foto da carta</span>
+              <span className="text-xs font-semibold text-muted">Encaixe a carta no quadro</span>
+            </span>
+            <input
+              ref={cameraInput}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="sr-only"
+              onChange={(e) => void addPhotos(e.target.files)}
+              aria-describedby={errors.photos ? "fotos-erro" : undefined}
+            />
+          </label>
+        )}
+        {photos.length > 1 && (
+          <ul className="flex gap-2">
+            {photos.slice(1).map((p, j) => (
+              <li key={p.url} className="relative">
+                <button type="button" onClick={() => makeCover(j + 1)} aria-label={`Usar foto ${j + 2} como principal`} className="block">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={p.url} alt="" className="aspect-[63/88] w-full rounded-sm border border-line object-cover" />
+                  <img src={p.url} alt="" className="aspect-[63/88] w-12 rounded-[5px] border border-line object-cover" />
                 </button>
-              )}
-              {i === 0 && (
-                <span aria-hidden className="absolute bottom-1 left-1 rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-extrabold text-on-accent">
-                  Capa
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => removePhoto(i)}
-                aria-label={`Remover foto ${i + 1}`}
-                className="absolute -right-2 -top-2 grid size-8 place-items-center rounded-full border border-line bg-bg text-sm"
-              >
-                ✕
-              </button>
-            </div>
-          ))}
-          {photos.length < MAX_PHOTOS && (
-            // celular: abre direto a câmera traseira (no computador o atributo capture é ignorado, por isso o botão só aparece em tela de toque)
-            <label className="hidden aspect-[63/88] cursor-pointer place-items-center rounded-sm border-2 border-accent/60 bg-accent/10 text-center text-xs font-bold text-accent-text pointer-coarse:grid has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent">
-              <span>
-                <svg aria-hidden viewBox="0 0 24 24" className="mx-auto mb-1 size-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
-                  <circle cx="12" cy="13.5" r="3.5" />
-                </svg>
-                Câmera
-              </span>
-              <input
-                ref={cameraInput}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="sr-only"
-                onChange={(e) => void addPhotos(e.target.files)}
-                aria-describedby={errors.photos ? "fotos-erro" : "fotos-dica"}
-              />
-            </label>
-          )}
-          {photos.length < MAX_PHOTOS && (
-            <label className="grid aspect-[63/88] cursor-pointer place-items-center rounded-sm border-2 border-dashed border-line text-center text-xs font-bold text-muted has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent">
-              <span>
-                <span aria-hidden className="block text-2xl">
-                  +
-                </span>
-                Galeria
-              </span>
+                <button
+                  type="button"
+                  onClick={() => removePhoto(j + 1)}
+                  aria-label={`Remover foto ${j + 2}`}
+                  className="absolute -right-2 -top-2 grid size-6 place-items-center rounded-full border border-line bg-bg text-[11px]"
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {photos.length < MAX_PHOTOS && (
+          <div className="flex items-center gap-1 text-sm font-bold text-muted">
+            {photos.length > 0 && (
+              // mais uma foto pela câmera (verso, detalhe): nem todo celular oferece a câmera na galeria
+              <>
+                <label className="flex min-h-11 cursor-pointer items-center px-2 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent">
+                  + Foto do verso ou detalhe
+                  <input
+                    ref={cameraInput}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="sr-only"
+                    onChange={(e) => void addPhotos(e.target.files)}
+                    aria-describedby={errors.photos ? "fotos-erro" : undefined}
+                  />
+                </label>
+                <span aria-hidden>·</span>
+              </>
+            )}
+            <label className="flex min-h-11 cursor-pointer items-center px-2 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent">
+              {photos.length ? "Galeria" : "ou escolher da galeria"}
               <input
                 ref={fileInput}
                 type="file"
@@ -328,25 +350,19 @@ export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: st
                 multiple
                 className="sr-only"
                 onChange={(e) => void addPhotos(e.target.files)}
-                aria-describedby={errors.photos ? "fotos-erro" : "fotos-dica"}
+                aria-describedby={errors.photos ? "fotos-erro" : undefined}
               />
             </label>
-          )}
-        </div>
-        {errors.photos ? (
-          <p id="fotos-erro" className="text-xs font-semibold text-danger">
+          </div>
+        )}
+        {errors.photos && (
+          <p id="fotos-erro" className="text-center text-xs font-semibold text-danger">
             {errors.photos}
-          </p>
-        ) : (
-          <p id="fotos-dica" className="text-xs text-muted">
-            Tire pela câmera ou escolha da galeria: frente, verso e detalhes. Toque numa foto para virar a capa.
           </p>
         )}
       </section>
 
-      <div ref={nameInput}>
-        <Field label="Nome da carta" name="card-name" value={values.name} onChange={set("name")} error={errors.name} maxLength={120} autoComplete="off" />
-      </div>
+      <Field label="Nome da carta" name="card-name" value={values.name} onChange={set("name")} error={errors.name} maxLength={120} autoComplete="off" placeholder="Ex.: Pikachu ex" />
       {values.tcg === "Pokémon" && (
         <PokemonLookup
           query={values.name}
@@ -358,27 +374,34 @@ export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: st
           }}
         />
       )}
-      <Select label="Jogo" value={values.tcg} onChange={set("tcg")} options={TCGS} />
-      <div className="grid grid-cols-[1fr_120px] gap-2">
-        <Field label="Coleção" value={values.collection} onChange={set("collection")} autoComplete="off" />
-        <Field label="Número" placeholder="SWSH262" value={values.cardNumber} onChange={set("cardNumber")} autoComplete="off" spellCheck={false} />
+
+      <div className="flex items-center justify-between gap-2.5 rounded-sm border border-line bg-surface px-3 py-2 text-[13px]">
+        <span className="min-w-0">{cardSummary(values)}</span>
+        <button type="button" onClick={() => setMore((v) => !v)} aria-expanded={more} className="min-h-10 shrink-0 px-1 font-extrabold text-accent-text">
+          {more ? "Pronto" : "Mudar"}
+        </button>
       </div>
-      <ChoiceChips label="Idioma" options={LANGUAGES} value={values.language} onChange={(v) => update("language", v)} />
-      <ChoiceChips label="Condição" options={CONDITIONS} value={values.condition} onChange={(v) => update("condition", v)} />
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="Variante" placeholder="Holo, Promo…" value={values.variant} onChange={set("variant")} autoComplete="off" />
-        <Field label="Preço Liga (opcional)" placeholder="12,50" inputMode="decimal" value={values.liga} onChange={set("liga")} error={errors.liga} />
-      </div>
-      <TextArea label="Observações" value={values.notes} onChange={set("notes")} hint="Opcional. Ex.: pequena marca no verso." />
+      {more && (
+        <div className="flex flex-col gap-3">
+          <ChoiceChips label="Idioma" options={LANGUAGES} value={values.language} onChange={(v) => update("language", v)} />
+          <ChoiceChips label="Condição" options={CONDITIONS} value={values.condition} onChange={(v) => update("condition", v)} />
+          <Field label="Preço Liga (opcional)" placeholder="12,50" inputMode="decimal" value={values.liga} onChange={set("liga")} error={errors.liga} />
+          <Select label="Jogo" value={values.tcg} onChange={set("tcg")} options={TCGS} />
+          <div className="grid grid-cols-[1fr_120px] gap-2">
+            <Field label="Coleção" value={values.collection} onChange={set("collection")} autoComplete="off" />
+            <Field label="Número" placeholder="SWSH262" value={values.cardNumber} onChange={set("cardNumber")} autoComplete="off" spellCheck={false} />
+          </div>
+          <Field label="Variante" placeholder="Holo, Promo…" value={values.variant} onChange={set("variant")} autoComplete="off" />
+          <TextArea label="Observações" value={values.notes} onChange={set("notes")} hint="Opcional. Ex.: pequena marca no verso." />
+        </div>
+      )}
       <FormError message={formError} />
-      <div className="grid grid-cols-2 gap-2">
-        <Button type="button" variant="outline" className="min-h-[52px]" pending={pending === "stay"} disabled={!!pending} onClick={() => void save("stay")}>
-          Salvar e nova
-        </Button>
-        <Button type="submit" className="min-h-[52px]" pending={pending === "leave"} disabled={!!pending}>
-          {eventId ? "Salvar e pôr no leilão" : "Salvar carta"}
-        </Button>
-      </div>
+      <Button type="button" block className="min-h-[72px] font-display text-xl" pending={pending === "stay"} disabled={!!pending} onClick={() => void save("stay")}>
+        Salvar e próxima foto
+      </Button>
+      <button type="submit" disabled={!!pending} aria-busy={pending === "leave" || undefined} className="-mt-1 min-h-11 text-sm font-bold text-muted disabled:opacity-50">
+        {pending === "leave" ? "Salvando…" : eventId ? "Salvar e pôr no leilão" : "Salvar e terminar"}
+      </button>
     </form>
   );
 }
