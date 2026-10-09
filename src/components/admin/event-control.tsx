@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { auctionMessage, type AuctionResult } from "@/lib/auction/codes";
-import { breakRemainingMs, formatCountdown, remainingMs } from "@/lib/auction/logic";
+import { breakRemainingMs, formatCountdown, optionsLabel, remainingMs } from "@/lib/auction/logic";
 import type { RoundState } from "@/lib/auction/types";
 import { adminRpc, fetchEventRounds, fetchFreeCards, roundSummary, type FreeCard, type QueueRound } from "@/lib/admin-data";
 import { formatBRL } from "@/lib/money";
@@ -16,8 +16,8 @@ import { Sheet } from "@/components/ui/sheet";
 import { BreakBanner } from "@/components/room/break-banner";
 import { useCloseWhenExpired, useRoom, useTicker } from "@/components/room/use-room";
 import { EventCover } from "./event-cover";
-import { RoundSheet } from "./round-sheet";
 import { SoldPanel } from "./sold-panel";
+import { AddCardSheet, RoundPriceSheet } from "./speed-sheets";
 
 export interface AdminEvent {
   id: string;
@@ -42,7 +42,7 @@ export function EventControl({ event, sellerId, newCardId, groupUrl }: { event: 
   const [eventStatus, setEventStatus] = useState(event.status);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: "danger" | "win"; text: string } | null>(null);
-  // painel da rodada: "new" escolhe carta e configura; uma rodada da fila abre para editar
+  // "new" escolhe a carta e o preço; uma carta da fila abre o "Mudar preço"
   const [sheet, setSheet] = useState<"new" | QueueRound | null>(null);
   // confirmação antes de tirar uma carta da fila
   const [removing, setRemoving] = useState<QueueRound | null>(null);
@@ -128,6 +128,13 @@ export function EventControl({ event, sellerId, newCardId, groupUrl }: { event: 
     await act("reorder", () => adminRpc(sb, "admin_reorder_queue", { p_event_id: event.id, p_round_ids: ids }));
   }
 
+  /** Pular: a próxima carta vai para o fim da fila. */
+  async function skip() {
+    if (queued.length < 2) return;
+    const ids = [...queued.slice(1), queued[0]].map((r) => r.id);
+    await act("reorder", () => adminRpc(sb, "admin_reorder_queue", { p_event_id: event.id, p_round_ids: ids }));
+  }
+
   async function remove(id: string) {
     if (busy) return;
     setBusy("remove");
@@ -163,7 +170,7 @@ export function EventControl({ event, sellerId, newCardId, groupUrl }: { event: 
         ))}
       {breakSheet && (
         <Sheet title="Intervalo" onClose={() => setBreakSheet(false)}>
-          <p className="text-sm text-muted">A carta aberta congela e ninguém dá lance. Volta sozinho no fim do tempo, ou quando você tocar em “Voltar agora”.</p>
+          <p className="text-sm text-muted">A carta aberta congela e ninguém compra. Volta sozinho no fim do tempo, ou quando você tocar em “Voltar agora”.</p>
           <div className="mt-3 grid grid-cols-3 gap-2">
             {[2, 5, 10].map((min) => (
               <Button
@@ -247,9 +254,21 @@ export function EventControl({ event, sellerId, newCardId, groupUrl }: { event: 
               )
             }
           >
-            {queued.length ? `${room.round ? "Próxima carta" : "Começar com"}: ${queued[0].card.name}` : "Acabaram as cartas"}
+            {queued.length ? nextLabel(queued[0]) : "Acabaram as cartas"}
           </Button>
-          {!queued.length && <p className="text-center text-sm text-muted">Adicione mais cartas abaixo ou encerre o leilão.</p>}
+          {queued.length ? (
+            <div className="flex justify-center gap-1 text-sm font-bold text-muted">
+              <SmallAction disabled={!!busy || queued.length < 2} onClick={() => void skip()}>
+                Pular
+              </SmallAction>
+              <span aria-hidden className="self-center">·</span>
+              <SmallAction disabled={!!busy} onClick={() => setSheet(queued[0])}>
+                Mudar preço
+              </SmallAction>
+            </div>
+          ) : (
+            <p className="text-center text-sm text-muted">Adicione mais cartas abaixo ou encerre o leilão.</p>
+          )}
         </section>
       )}
 
@@ -263,15 +282,12 @@ export function EventControl({ event, sellerId, newCardId, groupUrl }: { event: 
               + Adicionar carta
             </button>
           </div>
-          {sheet && (
-            <RoundSheet
-              key={sheet === "new" ? "new" : sheet.id}
+          {sheet === "new" && (
+            <AddCardSheet
               sb={sb}
               eventId={event.id}
-              ordinal={sheet === "new" ? rounds.length + 1 : rounds.findIndex((r) => r.id === sheet.id) + 1}
               cards={freeCards}
-              editing={sheet === "new" ? undefined : sheet}
-              initialCard={sheet === "new" ? (newCard ?? undefined) : undefined}
+              initialCard={newCard ?? undefined}
               onClose={() => {
                 setSheet(null);
                 setNewCard(null);
@@ -279,6 +295,19 @@ export function EventControl({ event, sellerId, newCardId, groupUrl }: { event: 
               onSaved={(text) => {
                 setSheet(null);
                 setNewCard(null);
+                void reload();
+                setMessage({ tone: "win", text });
+              }}
+            />
+          )}
+          {sheet && sheet !== "new" && (
+            <RoundPriceSheet
+              key={sheet.id}
+              sb={sb}
+              round={sheet}
+              onClose={() => setSheet(null)}
+              onSaved={(text) => {
+                setSheet(null);
                 void reload();
                 setMessage({ tone: "win", text });
               }}
@@ -310,10 +339,10 @@ export function EventControl({ event, sellerId, newCardId, groupUrl }: { event: 
                   )}
                   <button type="button" onClick={() => setSheet(r)} disabled={!!busy} className="min-w-0 flex-1 text-left">
                     <span className="block truncate text-sm font-bold">
-                      <span className="sr-only">Editar </span>
+                      <span className="sr-only">Mudar preço de </span>
                       {r.card.name}
                     </span>
-                    <span className="block truncate text-xs text-muted">{roundSummary(r)}</span>
+                    <span className="block truncate text-xs text-muted">{r.mode === "speed" ? formatBRL(r.fixed_price_cents ?? 0) : isQuick(r) && r.bid_options_cents ? optionsLabel(r.bid_options_cents) : roundSummary(r)}</span>
                   </button>
                   <div className="flex">
                     <IconButton label={`Subir ${r.card.name}`} disabled={i === 0 || !!busy} onClick={() => move(i, -1)}>
@@ -345,7 +374,7 @@ export function EventControl({ event, sellerId, newCardId, groupUrl }: { event: 
               <li key={r.id} className="flex justify-between gap-2 text-sm">
                 <span className="truncate">{r.card.name}</span>
                 <span className="shrink-0 text-muted tabular">
-                  {r.status === "cancelled" ? "Cancelada" : r.current_amount_cents != null ? formatBRL(r.current_amount_cents) : "Sem lances"}
+                  {r.status === "cancelled" ? "Cancelada" : r.current_amount_cents != null ? formatBRL(r.current_amount_cents) : "Ninguém levou"}
                 </span>
               </li>
             ))}
@@ -416,6 +445,111 @@ function ActiveRound({
   const [reason, setReason] = useState("");
   const paused = round.status === "paused";
   const leader = round.leading_nickname && round.current_amount_cents != null;
+  const speed = isQuick(round);
+  const options = round.mode === "speed" ? null : round.bid_options_cents;
+
+  const cancelForm = cancelling && (
+    <form
+      className="flex flex-col gap-2 rounded-md border border-danger/50 bg-danger/10 p-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!reason.trim()) return;
+        onCancel(reason.trim());
+        setCancelling(false);
+        setReason("");
+      }}
+    >
+      <label htmlFor="cancel-reason" className="text-sm font-bold">
+        Por que cancelar?
+      </label>
+      <input
+        id="cancel-reason"
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        placeholder="Ex.: carta com defeito"
+        maxLength={200}
+        className="min-h-[46px] rounded-sm border border-line bg-surface px-3.5 text-md"
+      />
+      <p className="text-xs text-muted">{speed ? "A carta sai do leilão e ninguém leva." : "Os lances desta carta são descartados e ninguém leva."}</p>
+      <Button type="submit" variant="danger" disabled={!reason.trim() || !!busy} pending={busy === "cancel"}>
+        Cancelar carta
+      </Button>
+    </form>
+  );
+
+  if (speed) {
+    // rapidez: o botão está liberado; o primeiro toque confirmado leva e a carta fecha sozinha
+    return (
+      <section aria-label="Carta no ar" className="flex flex-col gap-3">
+        <div className="flex flex-col items-center gap-2 rounded-md border border-line bg-surface p-3 text-center">
+          {card?.photos[0] ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={card.photos[0]} alt="" width={120} height={168} className="h-[168px] w-[120px] rounded-[7px] object-cover" />
+          ) : (
+            <span aria-hidden className="h-[168px] w-[120px] rounded-[7px] bg-surface-2" />
+          )}
+          <p className="font-bold">{card?.name ?? "…"}</p>
+          <Pill tone="live" dot>
+            {options ? "Botões liberados" : "Botão liberado"}
+          </Pill>
+          {options ? (
+            <>
+              <p className="text-sm tabular">{optionsLabel(options)}</p>
+              <p className="text-sm">
+                {leader ? (
+                  <>
+                    <b>{round.leading_nickname}</b> está levando por <b className="tabular">{formatBRL(round.current_amount_cents ?? 0)}</b>
+                  </>
+                ) : (
+                  <span className="text-muted">Ninguém tocou ainda</span>
+                )}
+              </p>
+              <p className="text-xs text-muted">Quem tocar primeiro em {formatBRL(round.fixed_price_cents ?? 0)} leva na hora.</p>
+            </>
+          ) : (
+            <p className="text-sm">
+              Quem tocar primeiro leva por <b className="tabular">{formatBRL(round.fixed_price_cents ?? 0)}</b>
+            </p>
+          )}
+        </div>
+
+        {confirmClose ? (
+          <div className="flex flex-col gap-2 rounded-md border border-line bg-surface p-3">
+            <p className="text-sm">
+              {leader
+                ? `${round.leading_nickname} leva ${card?.name ?? "a carta"} por ${formatBRL(round.current_amount_cents ?? 0)}. Não dá para desfazer.`
+                : "Ninguém tocou ainda. A carta volta para as cartas livres e você pode leiloar de novo outro dia."}
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="secondary" onClick={() => setConfirmClose(false)}>
+                Esperar mais
+              </Button>
+              <Button
+                pending={busy === "close"}
+                onClick={() => {
+                  setConfirmClose(false);
+                  onClose();
+                }}
+              >
+                {leader ? "Sim, fechar" : "Ninguém quis"}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button block variant="secondary" className="min-h-[56px]" pending={busy === "close"} disabled={!!busy} onClick={() => setConfirmClose(true)}>
+            {leader ? `Fechar: ${round.leading_nickname} leva` : "Ninguém quis? Fechar a carta"}
+          </Button>
+        )}
+
+        <div className="flex justify-center text-sm font-bold text-muted">
+          <SmallAction disabled={!!busy} onClick={() => setCancelling((v) => !v)} aria-expanded={cancelling}>
+            Cancelar carta
+          </SmallAction>
+        </div>
+        {cancelForm}
+      </section>
+    );
+  }
 
   return (
     <section aria-label="Carta no ar" className="flex flex-col gap-3">
@@ -502,34 +636,7 @@ function ActiveRound({
           Cancelar carta
         </SmallAction>
       </div>
-      {cancelling && (
-        <form
-          className="flex flex-col gap-2 rounded-md border border-danger/50 bg-danger/10 p-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!reason.trim()) return;
-            onCancel(reason.trim());
-            setCancelling(false);
-            setReason("");
-          }}
-        >
-          <label htmlFor="cancel-reason" className="text-sm font-bold">
-            Por que cancelar?
-          </label>
-          <input
-            id="cancel-reason"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="Ex.: carta com defeito"
-            maxLength={200}
-            className="min-h-[46px] rounded-sm border border-line bg-surface px-3.5 text-md"
-          />
-          <p className="text-xs text-muted">Os lances desta carta são descartados e ninguém leva.</p>
-          <Button type="submit" variant="danger" disabled={!reason.trim() || !!busy} pending={busy === "cancel"}>
-            Cancelar carta
-          </Button>
-        </form>
-      )}
+      {cancelForm}
       {round.recent_bids.length > 0 && (
         <div>
           <Kicker className="mb-1">Últimos lances</Kicker>
@@ -588,4 +695,16 @@ function IconButton({ label, children, ...rest }: React.ButtonHTMLAttributes<HTM
       {children}
     </button>
   );
+}
+
+/** Rapidez: preço único ou os 4 botões, o maior arremata na hora (sem cronômetro). */
+function isQuick(r: Pick<QueueRound, "mode" | "bid_options_cents" | "fixed_price_cents">): boolean {
+  return r.mode === "speed" || (!!r.bid_options_cents?.length && r.fixed_price_cents != null);
+}
+
+/** Botão grande do ao vivo: rapidez libera os botões de compra; rodada antiga de lances só abre. */
+function nextLabel(r: QueueRound): string {
+  if (r.mode === "speed" && r.fixed_price_cents != null) return `Liberar o botão: ${r.card.name} · ${formatBRL(r.fixed_price_cents)}`;
+  if (isQuick(r) && r.bid_options_cents) return `Liberar os botões: ${r.card.name} · ${optionsLabel(r.bid_options_cents)}`;
+  return `Abrir: ${r.card.name}`;
 }

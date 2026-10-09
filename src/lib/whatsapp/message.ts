@@ -19,7 +19,7 @@ export function buildRoundResultMessage(p: RoundResultPayload, siteUrl: string):
   const card = p.card_variant ? `${p.card_name} — ${p.card_variant}` : p.card_name;
   const link = `${siteUrl.replace(/\/$/, "")}/resultado/${p.round_id}`;
   if (p.winner_nickname == null || p.amount_cents == null) {
-    return [`🃏 ${card}`, `🎯 Leilão #${p.event_number}`, "", "Sem lances nesta rodada. A carta volta em um próximo leilão!"].join("\n");
+    return [`🃏 ${card}`, `🎯 Leilão #${p.event_number}`, "", "Ninguém levou esta carta. Ela volta em um próximo leilão!"].join("\n");
   }
   return [
     "🏆 CARTA ARREMATADA!",

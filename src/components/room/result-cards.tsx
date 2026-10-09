@@ -42,7 +42,7 @@ export function LostCard({ winner, amountCents, at, withMs }: { winner: string |
   if (!winner || amountCents == null) {
     return (
       <section className="rounded-md border border-line bg-surface p-4 text-center">
-        <p className="font-bold">Rodada encerrada sem lances</p>
+        <p className="font-bold">Ninguém levou esta carta</p>
       </section>
     );
   }

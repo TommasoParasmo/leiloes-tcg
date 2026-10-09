@@ -7,19 +7,20 @@ import { Field, FormError } from "@/components/ui/field";
 import { Sheet } from "@/components/ui/sheet";
 import type { FreeCard } from "@/lib/admin-data";
 import { auctionMessage, type AuctionResult } from "@/lib/auction/codes";
+import { SPEED_STEPS_CENTS, speedOptions } from "@/lib/auction/logic";
 import { cn } from "@/lib/cn";
-import { parseBRL } from "@/lib/money";
-import { dayChips, defaultSlot, defaultsSummary, eventTitle, isPast, parseIncrements, startsAtIso, type RoundDefaults } from "@/lib/quick-event";
+import { formatBRL, MAX_PRICE_CENTS, parseBRL } from "@/lib/money";
+import { dayChips, defaultSlot, eventTitle, isPast, startsAtIso } from "@/lib/quick-event";
 import { createClient } from "@/lib/supabase/client";
 
 const TIMES = ["19:00", "20:00", "21:00"];
-const SECONDS = [10, 20, 30, 60];
 
 /**
- * Criar leilão em um passo: dia, horário e tocar nas cartas. Todas entram com o lance
- * padrão da loja e o leilão já sai publicado; dá para mudar carta por carta depois.
+ * Criar leilão em um passo: dia, horário e tocar nas cartas. Só rapidez por enquanto:
+ * cada carta ganha 4 botões a partir do mínimo da Liga (+R$ 1 ou +R$ 2) e o leilão já sai
+ * publicado. Carta antiga sem mínimo da Liga pede o valor ao ser tocada.
  */
-export function EventForm({ cards, defaults: initialDefaults, now }: { cards: FreeCard[]; defaults: RoundDefaults; now: number }) {
+export function EventForm({ cards: initialCards, now }: { cards: FreeCard[]; now: number }) {
   const router = useRouter();
   const days = useMemo(() => dayChips(new Date(now)), [now]);
   const [initialSlot] = useState(() => defaultSlot(new Date(now), TIMES));
@@ -27,14 +28,21 @@ export function EventForm({ cards, defaults: initialDefaults, now }: { cards: Fr
   const [otherDay, setOtherDay] = useState(false);
   const [time, setTime] = useState(initialSlot.time);
   const [otherTime, setOtherTime] = useState(false);
-  const [picked, setPicked] = useState<string[]>(() => cards.map((c) => c.id));
-  const [defaults, setDefaults] = useState(initialDefaults);
-  const [editing, setEditing] = useState(false);
+  const [cards, setCards] = useState(initialCards);
+  const [picked, setPicked] = useState<string[]>(() => initialCards.filter((c) => c.price_cents != null).map((c) => c.id));
+  // carta sem preço tocada: abre o "Quanto custa?"
+  const [pricing, setPricing] = useState<FreeCard | null>(null);
+  const [step, setStep] = useState<number>(SPEED_STEPS_CENTS[0]);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  const all = picked.length === cards.length;
-  const toggle = (id: string) => (setPicked((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id])), setError(null));
+  const pickable = cards.filter((c) => c.price_cents != null);
+  const all = pickable.length > 0 && picked.length === pickable.length;
+  const toggle = (c: FreeCard) => {
+    setError(null);
+    if (c.price_cents == null) return setPricing(c);
+    setPicked((s) => (s.includes(c.id) ? s.filter((x) => x !== c.id) : [...s, c.id]));
+  };
 
   async function create() {
     const iso = startsAtIso(date, time);
@@ -46,10 +54,16 @@ export function EventForm({ cards, defaults: initialDefaults, now }: { cards: Fr
     // ordem do leilão = ordem da grade (as mais novas primeiro)
     const ids = cards.map((c) => c.id).filter((id) => picked.includes(id));
     try {
-      const { data, error: rpcError } = await createClient().rpc("admin_create_quick_event", { p_title: eventTitle(date), p_starts_at: iso, p_card_ids: ids });
+      const { data, error: rpcError } = await createClient().rpc("admin_create_quick_event", { p_title: eventTitle(date), p_starts_at: iso, p_card_ids: ids, p_step_cents: step });
       const r = data as (AuctionResult & { id?: string; card_id?: string }) | null;
       if (rpcError || !r?.ok || !r.id) {
         setPending(false);
+        if (r?.code === "price_required" && r.card_id) {
+          const card = cards.find((c) => c.id === r.card_id);
+          setPicked((s) => s.filter((x) => x !== r.card_id));
+          if (card) setPricing({ ...card, price_cents: null });
+          return setError(`${card?.name ?? "Uma carta"} está sem o mínimo da Liga.`);
+        }
         if (r?.code === "card_unavailable" && r.card_id) {
           // a carta entrou em outro leilão enquanto esta tela estava aberta: tira da seleção
           const name = cards.find((c) => c.id === r.card_id)?.name ?? "Uma carta";
@@ -108,7 +122,7 @@ export function EventForm({ cards, defaults: initialDefaults, now }: { cards: Fr
       <fieldset className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <legend className="text-sm font-bold text-muted">Quais cartas? Toque para escolher</legend>
-          <button type="button" onClick={() => setPicked(all ? [] : cards.map((c) => c.id))} className="min-h-10 px-1 text-sm font-extrabold text-accent-text">
+          <button type="button" onClick={() => setPicked(all ? [] : pickable.map((c) => c.id))} className="min-h-10 px-1 text-sm font-extrabold text-accent-text">
             {all ? "Nenhuma" : "Todas"}
           </button>
         </div>
@@ -121,7 +135,7 @@ export function EventForm({ cards, defaults: initialDefaults, now }: { cards: Fr
                   type="button"
                   aria-pressed={on}
                   aria-label={c.name}
-                  onClick={() => toggle(c.id)}
+                  onClick={() => toggle(c)}
                   className={cn("relative block aspect-[63/88] w-full overflow-hidden rounded-[7px] bg-surface", on ? "ring-[2.5px] ring-accent" : "opacity-45")}
                 >
                   {c.photo ? (
@@ -130,6 +144,9 @@ export function EventForm({ cards, defaults: initialDefaults, now }: { cards: Fr
                   ) : (
                     <span className="grid size-full place-items-center p-1 text-center text-[10px] font-bold leading-tight">{c.name}</span>
                   )}
+                  <span className="absolute inset-x-0 bottom-0 bg-black/65 px-1 py-0.5 text-center text-[11px] font-bold text-white tabular">
+                    {c.price_cents != null ? formatBRL(c.price_cents).replace(",00", "") : "Pôr Liga"}
+                  </span>
                   {on && (
                     <span aria-hidden className="absolute right-1 top-1 grid size-[18px] place-items-center rounded-full bg-accent text-[11px] font-black text-white">
                       ✓
@@ -142,20 +159,36 @@ export function EventForm({ cards, defaults: initialDefaults, now }: { cards: Fr
         </ul>
       </fieldset>
 
-      <div className="flex items-center justify-between gap-2.5 rounded-sm border border-line bg-surface px-3 py-2.5 text-[13px]">
-        <span>{defaultsSummary(defaults)}</span>
-        <button type="button" onClick={() => setEditing(true)} className="min-h-10 shrink-0 px-1 font-extrabold text-accent-text">
-          Mudar
-        </button>
-      </div>
+      <fieldset className="flex flex-col gap-2">
+        <legend className="mb-2 text-sm font-bold text-muted">Botões de cada carta</legend>
+        <div className="grid grid-cols-2 gap-1.5">
+          {SPEED_STEPS_CENTS.map((s) => (
+            <Chip key={s} on={step === s} onClick={() => setStep(s)}>
+              +R$ {s / 100} ({speedOptions(1000, s).map((c) => c / 100).join(", ")})
+            </Chip>
+          ))}
+        </div>
+        <p className="text-xs text-muted">Começa no mínimo da Liga de cada carta. Quem tocar primeiro no maior valor leva na hora.</p>
+      </fieldset>
 
       <FormError message={error} />
       <Button block className="min-h-[72px] font-display text-xl" pending={pending} disabled={!picked.length} onClick={() => void create()}>
         {picked.length ? `Criar leilão com ${picked.length} ${picked.length === 1 ? "carta" : "cartas"}` : "Toque nas cartas"}
       </Button>
-      <p className="-mt-2 text-center text-xs text-muted">O leilão já aparece para todos. Dá para mudar a ordem e o lance de cada carta depois.</p>
+      <p className="-mt-2 text-center text-xs text-muted">O leilão já aparece para todos. Dá para mudar a ordem e os valores de cada carta depois.</p>
 
-      {editing && <DefaultsSheet value={defaults} onClose={() => setEditing(false)} onSaved={(d) => (setDefaults(d), setEditing(false))} />}
+      {pricing && (
+        <PriceSheet
+          card={pricing}
+          onClose={() => setPricing(null)}
+          onSaved={(cents) => {
+            setCards((list) => list.map((c) => (c.id === pricing.id ? { ...c, price_cents: cents } : c)));
+            setPicked((s) => (s.includes(pricing.id) ? s : [...s, pricing.id]));
+            setPricing(null);
+            setError(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -173,35 +206,23 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
   );
 }
 
-/** Lance padrão da loja: vale para todos os próximos leilões. */
-function DefaultsSheet({ value, onClose, onSaved }: { value: RoundDefaults; onClose: () => void; onSaved: (d: RoundDefaults) => void }) {
-  const [start, setStart] = useState((value.startCents / 100).toFixed(2).replace(".", ",").replace(",00", ""));
-  const [steps, setSteps] = useState(value.incrementsCents.map((c) => (c / 100).toFixed(2).replace(".", ",").replace(",00", "")).join(" "));
-  const [seconds, setSeconds] = useState(value.seconds);
-  const [errors, setErrors] = useState<{ start?: string; steps?: string }>({});
+/** Mínimo da Liga de uma carta antiga, cadastrada antes dele ser obrigatório. Fica salvo na carta. */
+function PriceSheet({ card, onClose, onSaved }: { card: FreeCard; onClose: () => void; onSaved: (cents: number) => void }) {
+  const [value, setValue] = useState("");
+  const [fieldError, setFieldError] = useState<string | undefined>();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   async function save() {
-    const startCents = parseBRL(start);
-    const incrementsCents = parseIncrements(steps);
-    const errs = {
-      start: startCents && startCents > 0 ? undefined : "Informe o lance inicial, ex.: 5",
-      steps: incrementsCents ? undefined : "Até 3 valores separados por espaço, ex.: 1 2 5",
-    };
-    setErrors(errs);
-    if (!startCents || !incrementsCents) return;
+    const cents = parseBRL(value);
+    if (!cents || cents <= 0) return setFieldError("Informe o valor, ex.: 10");
+    if (cents > MAX_PRICE_CENTS) return setFieldError("O preço máximo é R$ 100.000");
     setPending(true);
     setError(null);
     try {
-      const { data, error: rpcError } = await createClient().rpc("admin_update_round_defaults", {
-        p_start_price_cents: startCents,
-        p_increments_cents: incrementsCents,
-        p_duration_seconds: seconds,
-      });
-      const r = data as AuctionResult | null;
-      if (rpcError || !r?.ok) setError(r ? auctionMessage(r) : "Não foi possível salvar. Tente de novo.");
-      else return onSaved({ startCents, incrementsCents, seconds });
+      const { error: dbError } = await createClient().from("cards").update({ price_cents: cents, liga_price_cents: cents }).eq("id", card.id);
+      if (dbError) setError("Não foi possível salvar. Tente de novo.");
+      else return onSaved(cents);
     } catch {
       setError("Sem conexão com o servidor. Tente de novo.");
     }
@@ -209,29 +230,11 @@ function DefaultsSheet({ value, onClose, onSaved }: { value: RoundDefaults; onCl
   }
 
   return (
-    <Sheet title="Lance padrão" onClose={onClose}>
-      <p className="text-sm text-muted">Vale para as cartas dos próximos leilões. Uma carta só pode ser mudada na tela do leilão.</p>
-      <Field label="Lance inicial (R$)" inputMode="decimal" value={start} onChange={(e) => (setStart(e.target.value), setErrors((s) => ({ ...s, start: undefined })))} error={errors.start} />
-      <Field
-        label="Botões de lance (R$)"
-        value={steps}
-        onChange={(e) => (setSteps(e.target.value), setErrors((s) => ({ ...s, steps: undefined })))}
-        error={errors.steps}
-        hint="Quanto cada botão soma. Ex.: 1 2 5 vira +1, +2 e +5."
-      />
-      <div className="flex flex-col gap-1.5">
-        <span className="text-sm font-bold text-muted">Tempo de cada carta</span>
-        <div className="flex flex-wrap gap-1.5">
-          {SECONDS.map((s) => (
-            <Chip key={s} on={seconds === s} onClick={() => setSeconds(s)}>
-              {s} segundos
-            </Chip>
-          ))}
-        </div>
-      </div>
+    <Sheet title={`Mínimo da Liga de ${card.name}`} onClose={onClose}>
+      <Field label="Mínimo da Liga (R$)" inputMode="decimal" placeholder="Ex.: 10" value={value} onChange={(e) => (setValue(e.target.value), setFieldError(undefined))} error={fieldError} />
       <FormError message={error} />
       <Button block className="min-h-[52px]" pending={pending} onClick={() => void save()}>
-        Salvar lance padrão
+        Salvar
       </Button>
     </Sheet>
   );

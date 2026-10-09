@@ -75,7 +75,7 @@ export function SoldPanel({ sb, round, cardName, groupUrl }: { sb: Sb; round: Ro
           <p className="text-xs text-muted">A compra já aparece na conta de quem levou.</p>
         </>
       ) : (
-        <p className="font-bold">{cardName ?? "A carta"} ficou sem lances e voltou para as cartas livres</p>
+        <p className="font-bold">Ninguém levou {cardName ?? "a carta"}. Ela voltou para as cartas livres</p>
       )}
       {notice && round.status === "closed" && (
         <>

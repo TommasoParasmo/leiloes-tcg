@@ -36,7 +36,7 @@ describe("mensagem de resultado", () => {
       { card_name: "Horsea", card_variant: null, amount_cents: null, winner_nickname: null, event_number: 15, round_id: "abc", photo_path: null },
       "https://leilao.exemplo.com",
     );
-    expect(text).toBe(["🃏 Horsea", "🎯 Leilão #15", "", "Sem lances nesta rodada. A carta volta em um próximo leilão!"].join("\n"));
+    expect(text).toBe(["🃏 Horsea", "🎯 Leilão #15", "", "Ninguém levou esta carta. Ela volta em um próximo leilão!"].join("\n"));
   });
 });
 

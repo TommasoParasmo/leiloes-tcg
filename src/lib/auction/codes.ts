@@ -78,6 +78,7 @@ export type AuctionCode =
   | "user_not_blocked"
   | "card_not_found"
   | "card_unavailable"
+  | "price_required"
   | "event_already_published"
   | "message_not_found"
   | "message_already_done"
@@ -196,6 +197,8 @@ export function auctionMessage(result: Pick<AuctionResult, "code" | "min_cents" 
       return "Carta não encontrada";
     case "card_unavailable":
       return "Essa carta já está em outra rodada ou foi vendida";
+    case "price_required":
+      return "Esta carta está sem preço";
     case "event_already_published":
       return "Esse evento já foi publicado";
     case "message_already_done":
