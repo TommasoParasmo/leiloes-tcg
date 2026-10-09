@@ -191,20 +191,24 @@ export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: st
       return;
     }
     writeDraft(key, null);
-    if (then === "leave") {
-      router.replace(eventId ? `/painel/eventos/${eventId}?carta=${cardId}` : "/painel/cartas");
-      router.refresh();
-      return;
-    }
-    // "Salvar e nova": mantém jogo, coleção, idioma e condição, que costumam se repetir no lote
     const name = values.name.trim();
+    // limpa a tela nos dois casos: o Next guarda esta tela montada e a mostra de novo como ficou
+    // (sem isso, a próxima carta abria com a anterior preenchida e o botão girando)
+    // mantém jogo, coleção, idioma e condição, que costumam se repetir no lote
     photos.forEach((p) => URL.revokeObjectURL(p.url));
     setPhotos([]);
     setValues((s) => ({ ...empty, tcg: s.tcg, collection: s.collection, language: s.language, condition: s.condition }));
     setTouched(false);
     setDraftDecided(true);
-    setSaved(`${name} salva. Cadastre a próxima.`);
+    setErrors({});
     setPending(null);
+    if (then === "leave") {
+      setSaved(null);
+      router.replace(eventId ? `/painel/eventos/${eventId}?carta=${cardId}` : "/painel/cartas");
+      router.refresh();
+      return;
+    }
+    setSaved(`${name} salva. Cadastre a próxima.`);
     nameInput.current?.querySelector("input")?.focus();
     window.scrollTo({ top: 0 });
   }
