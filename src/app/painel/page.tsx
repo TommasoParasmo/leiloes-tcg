@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { AdminNav } from "@/components/admin/admin-nav";
+import { AdminNav, StoreLink } from "@/components/admin/admin-nav";
 import { AppBar } from "@/components/layout/app-bar";
 import { PageLoading } from "@/components/ui/page-loading";
 import { Pill, type PillTone } from "@/components/ui/pill";
@@ -21,7 +21,7 @@ const statusLabel: Record<string, [string, PillTone]> = {
 export default function PainelPage() {
   return (
     <>
-      <AppBar right={<span className="text-xs font-bold text-muted">Leiloeiro</span>} />
+      <AppBar right={<StoreLink />} />
       <AdminNav active="eventos" />
       <Suspense fallback={<PageLoading />}>
         <Eventos />

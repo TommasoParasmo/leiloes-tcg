@@ -275,3 +275,29 @@ describe("avisos", () => {
     expect(notes[0].body).toContain("R$ 22,00");
   });
 });
+
+describe("minha loja e dados do frete", () => {
+  it("leiloeiro salva Pix e CEP de origem; o CEP não fica público", async () => {
+    const [buyer] = await db.users(1);
+    expect((await db.rpc(buyer, "admin_update_store", ["x", "y", "z", "01310100"])).code).toBe("forbidden");
+    expect((await db.rpc(admin, "admin_update_store", ["k", "n", "c", "0131"])).code).toBe("invalid_request");
+    expect((await db.rpc(admin, "admin_update_store", [" pix@loja.com ", "Loja Teste", "Sao Paulo", "01310-100"])).code).toBe("saved");
+    const [s] = await db.sql<{ pix_key: string; origin_cep: string }>(
+      `select s.pix_key, p.origin_cep from sellers s join seller_private p on p.seller_id = s.id where s.id = $1`,
+      [seller],
+    );
+    expect(s).toEqual({ pix_key: "pix@loja.com", origin_cep: "01310100" });
+    const seen = await db.as(buyer, async (c) => (await c.query(`select * from seller_private`)).rows);
+    expect(seen).toEqual([]);
+    await expect(db.as(null, (c) => c.query(`select * from seller_private`))).rejects.toThrow(/permission denied/);
+  });
+
+  it("dados para cotar: CEP de origem, CEP do comprador e número de cartas, só para o leiloeiro", async () => {
+    await db.rpc(admin, "admin_update_store", ["pix@loja.com", "Loja Teste", "Sao Paulo", "04538133"]);
+    const buyer = await buyerWithAddress();
+    await auction(buyer, 1500);
+    const { order_id: orderId } = (await db.rpc(buyer, "close_my_lot", [(await lotOf(buyer)).id])) as { order_id: string };
+    expect((await db.rpc(buyer, "admin_shipping_quote_input", [orderId])).code).toBe("forbidden");
+    expect(await db.rpc(admin, "admin_shipping_quote_input", [orderId])).toMatchObject({ ok: true, from_cep: "04538133", to_cep: "01310100", cards: 1 });
+  });
+});

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { AdminNav } from "@/components/admin/admin-nav";
+import { AdminNav, StoreLink } from "@/components/admin/admin-nav";
 import { ClientsList, type Client } from "@/components/admin/clients-list";
 import { AppBar } from "@/components/layout/app-bar";
 import { PageLoading } from "@/components/ui/page-loading";
@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Clientes · Painel · Bate Carta" };
 export default function ClientesPage() {
   return (
     <>
-      <AppBar right={<span className="text-xs font-bold text-muted">Leiloeiro</span>} />
+      <AppBar right={<StoreLink />} />
       <AdminNav active="clientes" />
       <Suspense fallback={<PageLoading />}>
         <Clientes />
