@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Novo evento · Bate Carta" };
 export default function NovoEventoPage() {
   return (
     <>
-      <AppBar back="/painel" title="Novo evento" />
+      <AppBar back="/painel/eventos" title="Novo evento" />
       <Suspense fallback={<PageLoading />}>
         <Guarded />
       </Suspense>
