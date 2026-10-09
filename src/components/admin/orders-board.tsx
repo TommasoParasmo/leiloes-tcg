@@ -216,6 +216,11 @@ function ActionSheet({ action, sb, onClose, onDone }: { action: Action; sb: Retu
               setDays(q.days ? String(q.days) : "");
               setFieldError(null);
             }}
+            onClear={() => {
+              setPrice("");
+              setService("");
+              setDays("");
+            }}
           />
         )}
         <div className="grid grid-cols-2 gap-2">

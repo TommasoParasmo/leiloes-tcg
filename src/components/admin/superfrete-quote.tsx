@@ -15,13 +15,26 @@ const MESSAGES: Record<string, string> = {
 };
 
 /** Cotação do SuperFrete dentro do painel de frete: tocar numa opção preenche valor, serviço e prazo. */
-export function SuperfreteQuote({ orderId, onPick }: { orderId: string; onPick: (o: ShippingOption) => void }) {
+export function SuperfreteQuote({
+  orderId,
+  onPick,
+  onClear,
+}: {
+  orderId: string;
+  onPick: (o: ShippingOption) => void;
+  /** a opção escolhida antes deixou de valer (nova cotação): apaga o que ela tinha preenchido */
+  onClear: () => void;
+}) {
   const [state, setState] = useState<"idle" | "loading" | "done">("idle");
   const [options, setOptions] = useState<ShippingOption[]>([]);
   const [picked, setPicked] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function quote() {
+    // cotação nova: a escolha anterior (e o valor que ela preencheu) não vale mais
+    if (picked) onClear();
+    setPicked(null);
+    setOptions([]);
     setState("loading");
     setError(null);
     try {
@@ -45,7 +58,7 @@ export function SuperfreteQuote({ orderId, onPick }: { orderId: string; onPick: 
         aria-busy={state === "loading" || undefined}
         className="min-h-11 rounded-md bg-surface-2 text-sm font-bold disabled:text-muted"
       >
-        {state === "loading" ? "Calculando no SuperFrete…" : options.length ? "Calcular de novo" : "Calcular no SuperFrete"}
+        {state === "loading" ? "Calculando no SuperFrete…" : state === "done" ? "Calcular de novo" : "Calcular no SuperFrete"}
       </button>
       {error && (
         <p role="alert" className="text-sm text-danger">
