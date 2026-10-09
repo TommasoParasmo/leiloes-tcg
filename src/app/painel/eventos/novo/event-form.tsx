@@ -9,7 +9,7 @@ import type { FreeCard } from "@/lib/admin-data";
 import { auctionMessage, type AuctionResult } from "@/lib/auction/codes";
 import { cn } from "@/lib/cn";
 import { parseBRL } from "@/lib/money";
-import { dayChips, defaultsSummary, eventTitle, parseIncrements, startsAtIso, type RoundDefaults } from "@/lib/quick-event";
+import { dayChips, defaultSlot, defaultsSummary, eventTitle, isPast, parseIncrements, startsAtIso, type RoundDefaults } from "@/lib/quick-event";
 import { createClient } from "@/lib/supabase/client";
 
 const TIMES = ["19:00", "20:00", "21:00"];
@@ -22,9 +22,10 @@ const SECONDS = [10, 20, 30, 60];
 export function EventForm({ cards, defaults: initialDefaults, now }: { cards: FreeCard[]; defaults: RoundDefaults; now: number }) {
   const router = useRouter();
   const days = useMemo(() => dayChips(new Date(now)), [now]);
-  const [date, setDate] = useState(days[0].date);
+  const [initialSlot] = useState(() => defaultSlot(new Date(now), TIMES));
+  const [date, setDate] = useState(initialSlot.date);
   const [otherDay, setOtherDay] = useState(false);
-  const [time, setTime] = useState("20:00");
+  const [time, setTime] = useState(initialSlot.time);
   const [otherTime, setOtherTime] = useState(false);
   const [picked, setPicked] = useState<string[]>(() => cards.map((c) => c.id));
   const [defaults, setDefaults] = useState(initialDefaults);
@@ -38,6 +39,7 @@ export function EventForm({ cards, defaults: initialDefaults, now }: { cards: Fr
   async function create() {
     const iso = startsAtIso(date, time);
     if (!iso) return setError("Escolha o dia e o horário.");
+    if (isPast(iso, new Date().getTime())) return setError("Esse horário já passou. Escolha outro.");
     if (!picked.length) return setError("Toque em pelo menos uma carta.");
     setPending(true);
     setError(null);

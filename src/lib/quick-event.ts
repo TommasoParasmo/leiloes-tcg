@@ -36,6 +36,19 @@ export function startsAtIso(date: string, time: string): string | null {
   return Number.isNaN(t) ? null : new Date(t).toISOString();
 }
 
+/** Horário já passou (ou está a menos de 1 minuto)? */
+export function isPast(iso: string, now: number): boolean {
+  return Date.parse(iso) <= now + 60_000;
+}
+
+/** Dia e horário que já vêm marcados: hoje às 20h; se já passou, o próximo horário de hoje; senão, amanhã às 20h. */
+export function defaultSlot(now: Date, times: string[], preferred = "20:00"): { date: string; time: string } {
+  const [today, tomorrow] = dayChips(now).map((c) => c.date);
+  const ahead = (t: string) => !isPast(startsAtIso(today, t) ?? "", now.getTime());
+  const time = [preferred, ...times.filter((t) => t > preferred)].find(ahead) ?? times.find(ahead);
+  return time ? { date: today, time } : { date: tomorrow, time: preferred };
+}
+
 export interface RoundDefaults {
   startCents: number;
   incrementsCents: number[];
