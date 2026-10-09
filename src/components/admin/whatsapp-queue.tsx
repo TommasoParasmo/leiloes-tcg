@@ -72,7 +72,7 @@ export function WhatsappQueue({ initial, groupUrl }: { initial: QueueMessage[]; 
       setCopied(m.id);
       setTimeout(() => setCopied(null), 2500);
     } catch {
-      setError(groupUrl ? "Não foi possível copiar sozinho. Toque em “Copiar texto” e cole no grupo." : "Não foi possível copiar. Use “Abrir no WhatsApp”.");
+      setError(groupUrl ? "Não foi possível copiar sozinho. Use “Mandar com texto pronto” e escolha o grupo." : "Não foi possível copiar. Use “Abrir no WhatsApp”.");
     }
   }
 
@@ -128,7 +128,13 @@ export function WhatsappQueue({ initial, groupUrl }: { initial: QueueMessage[]; 
                     >
                       Copiar e abrir o grupo
                     </a>
-                    <p className="text-center text-xs text-muted">{copied === m.id ? "Texto copiado. No grupo, segure o campo de mensagem e toque em Colar." : "O texto vai copiado: no grupo, é só colar e enviar."}</p>
+                    <p className="text-center text-xs text-muted">
+                      {copied === m.id ? "Texto copiado. No grupo, segure o campo de mensagem e toque em Colar." : "O texto vai copiado: no grupo, é só colar e enviar."}{" "}
+                      {/* sem área de transferência (aparelho bloqueou), o texto pronto ainda vai por aqui */}
+                      <a href={whatsappShareUrl(m.text)} target="_blank" rel="noreferrer" className="font-bold underline">
+                        Mandar com texto pronto
+                      </a>
+                    </p>
                   </>
                 ) : (
                   <>
