@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildRoundResultMessage, whatsappShareUrl } from "./message";
+import { buildRoundResultMessage, normalizeGroupUrl, whatsappShareUrl } from "./message";
 
 describe("mensagem de resultado", () => {
   it("segue o modelo combinado", () => {
@@ -37,5 +37,17 @@ describe("mensagem de resultado", () => {
       "https://leilao.exemplo.com",
     );
     expect(text).toBe(["🃏 Horsea", "🎯 Leilão #15", "", "Sem lances nesta rodada. A carta volta em um próximo leilão!"].join("\n"));
+  });
+});
+
+describe("normalizeGroupUrl", () => {
+  it("aceita o convite do grupo e tira o ?mode= do fim", () => {
+    expect(normalizeGroupUrl(" https://chat.whatsapp.com/ButtDqukFHUIeCisAggIl0?mode=gi_t ")).toBe("https://chat.whatsapp.com/ButtDqukFHUIeCisAggIl0");
+  });
+  it("recusa outros links", () => {
+    expect(normalizeGroupUrl("https://wa.me/5511999999999")).toBeNull();
+    expect(normalizeGroupUrl("http://chat.whatsapp.com/ButtDqukFHUIeCisAggIl0")).toBeNull();
+    expect(normalizeGroupUrl("https://chat.whatsapp.com.evil.dev/ButtDqukFHUIeCisAggIl0")).toBeNull();
+    expect(normalizeGroupUrl("")).toBeNull();
   });
 });

@@ -25,13 +25,16 @@ export default function WhatsappPage() {
 
 async function Fila() {
   const { sb, sellerId } = await requireAdmin("/painel/whatsapp");
-  const { data } = await sb
-    .from("whatsapp_messages")
-    .select("id, status, payload, last_error, sent_at, created_at")
-    .eq("seller_id", sellerId)
-    .eq("kind", "round_result")
-    .order("created_at", { ascending: false })
-    .limit(100);
+  const [{ data }, { data: priv }] = await Promise.all([
+    sb
+      .from("whatsapp_messages")
+      .select("id, status, payload, last_error, sent_at, created_at")
+      .eq("seller_id", sellerId)
+      .eq("kind", "round_result")
+      .order("created_at", { ascending: false })
+      .limit(100),
+    sb.from("seller_private").select("whatsapp_group_url").eq("seller_id", sellerId).maybeSingle<{ whatsapp_group_url: string | null }>(),
+  ]);
   const messages: QueueMessage[] = (data ?? []).map((m) => {
     const p = m.payload as RoundResultPayload;
     return {
@@ -43,5 +46,5 @@ async function Fila() {
       photo: p.photo_path ? sb.storage.from(CARD_PHOTOS_BUCKET).getPublicUrl(p.photo_path).data.publicUrl : null,
     };
   });
-  return <WhatsappQueue initial={messages} />;
+  return <WhatsappQueue initial={messages} groupUrl={priv?.whatsapp_group_url ?? null} />;
 }

@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { auctionMessage } from "@/lib/auction/codes";
@@ -23,8 +24,10 @@ const tabOf = (s: QueueMessage["status"]): Tab | null =>
 /**
  * Publicação manual no grupo (design: tela 11). O resultado fica pendente até o
  * leiloeiro confirmar que publicou; nenhum envio automático sem integração oficial.
+ * Com o grupo cadastrado em Minha loja, o botão copia o texto e abre o grupo (o WhatsApp
+ * não aceita texto pronto em link de grupo); sem ele, abre o WhatsApp para escolher a conversa.
  */
-export function WhatsappQueue({ initial }: { initial: QueueMessage[] }) {
+export function WhatsappQueue({ initial, groupUrl }: { initial: QueueMessage[]; groupUrl: string | null }) {
   const [sb] = useState(createClient);
   const [messages, setMessages] = useState(initial);
   const [tab, setTab] = useState<Tab>("pending");
@@ -69,7 +72,7 @@ export function WhatsappQueue({ initial }: { initial: QueueMessage[] }) {
       setCopied(m.id);
       setTimeout(() => setCopied(null), 2500);
     } catch {
-      setError("Não foi possível copiar. Use “Abrir no WhatsApp”.");
+      setError(groupUrl ? "Não foi possível copiar sozinho. Use “Mandar com texto pronto” e escolha o grupo." : "Não foi possível copiar. Use “Abrir no WhatsApp”.");
     }
   }
 
@@ -113,14 +116,45 @@ export function WhatsappQueue({ initial }: { initial: QueueMessage[] }) {
             {m.status === "failed" && m.lastError && <p className="text-xs text-danger">{m.lastError}</p>}
             {tabOf(m.status) !== "sent" ? (
               <>
-                <a
-                  href={whatsappShareUrl(m.text)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex min-h-[52px] items-center justify-center rounded-md bg-accent font-bold text-on-accent shadow-accent"
-                >
-                  Abrir no WhatsApp
-                </a>
+                {groupUrl ? (
+                  <>
+                    <a
+                      href={groupUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      // copia no mesmo toque (o navegador só deixa copiar durante o toque) e o link abre o grupo
+                      onClick={() => void copy(m)}
+                      className="flex min-h-[52px] items-center justify-center rounded-md bg-accent font-bold text-on-accent shadow-accent"
+                    >
+                      Copiar e abrir o grupo
+                    </a>
+                    <p className="text-center text-xs text-muted">
+                      {copied === m.id ? "Texto copiado. No grupo, segure o campo de mensagem e toque em Colar." : "O texto vai copiado: no grupo, é só colar e enviar."}{" "}
+                      {/* sem área de transferência (aparelho bloqueou), o texto pronto ainda vai por aqui */}
+                      <a href={whatsappShareUrl(m.text)} target="_blank" rel="noreferrer" className="font-bold underline">
+                        Mandar com texto pronto
+                      </a>
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <a
+                      href={whatsappShareUrl(m.text)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex min-h-[52px] items-center justify-center rounded-md bg-accent font-bold text-on-accent shadow-accent"
+                    >
+                      Abrir no WhatsApp
+                    </a>
+                    <p className="text-center text-xs text-muted">
+                      Para abrir direto no grupo,{" "}
+                      <Link href="/painel/loja" className="font-bold underline">
+                        cadastre o link em Minha loja
+                      </Link>
+                      .
+                    </p>
+                  </>
+                )}
                 <div className="grid grid-cols-2 gap-2">
                   <Button variant="secondary" onClick={() => copy(m)}>
                     {copied === m.id ? "Copiada" : "Copiar texto"}

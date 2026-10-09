@@ -26,7 +26,7 @@ async function Loja() {
       pix_receiver_name: string | null;
       pix_receiver_city: string | null;
     }>(),
-    sb.from("seller_private").select("origin_cep").eq("seller_id", sellerId).maybeSingle<{ origin_cep: string | null }>(),
+    sb.from("seller_private").select("origin_cep, whatsapp_group_url").eq("seller_id", sellerId).maybeSingle<{ origin_cep: string | null; whatsapp_group_url: string | null }>(),
   ]);
   return (
     <StoreForm
@@ -36,6 +36,7 @@ async function Loja() {
         pixName: seller?.pix_receiver_name ?? "",
         pixCity: seller?.pix_receiver_city ?? "",
         originCep: priv?.origin_cep ? `${priv.origin_cep.slice(0, 5)}-${priv.origin_cep.slice(5)}` : "",
+        groupUrl: priv?.whatsapp_group_url ?? "",
       }}
     />
   );

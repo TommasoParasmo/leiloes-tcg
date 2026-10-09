@@ -38,3 +38,12 @@ export function buildRoundResultMessage(p: RoundResultPayload, siteUrl: string):
 export function whatsappShareUrl(text: string): string {
   return `https://wa.me/?text=${encodeURIComponent(text)}`;
 }
+
+/**
+ * Convite do grupo ("https://chat.whatsapp.com/…") sem o "?mode=…" que o WhatsApp põe no fim.
+ * Devolve null se não for um link de grupo. O servidor confere de novo.
+ */
+export function normalizeGroupUrl(value: string): string | null {
+  const url = value.trim().replace(/[?#].*$/, "");
+  return /^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9]{10,40}$/.test(url) ? url : null;
+}
