@@ -9,7 +9,7 @@ import { formatBRL } from "@/lib/money";
 import { createClient } from "@/lib/supabase/client";
 
 /** Fecha o lote (confirmação em painel): vira pedido e o leiloeiro calcula o frete. */
-export function CloseLotButton({ lotId, totalCents, cards }: { lotId: string; totalCents: number; cards: number }) {
+export function CloseLotButton({ lotId, totalCents, cards, label = "Fechar lote" }: { lotId: string; totalCents: number; cards: number; label?: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
@@ -30,21 +30,21 @@ export function CloseLotButton({ lotId, totalCents, cards }: { lotId: string; to
 
   return (
     <>
-      <Button block className="min-h-[52px]" onClick={() => setOpen(true)}>
-        Fechar lote
+      <Button block className="min-h-[60px] text-lg" onClick={() => setOpen(true)}>
+        {label}
       </Button>
       {open && (
-        <Sheet title="Fechar lote?" onClose={() => !pending && setOpen(false)}>
+        <Sheet title="Pagar estas cartas?" onClose={() => !pending && setOpen(false)}>
           <p className="text-sm text-muted">
-            {cards} {cards === 1 ? "carta" : "cartas"} · {formatBRL(totalCents)}. O leiloeiro calcula o frete e o Pix fica disponível aqui. Depois de fechar, novas
-            cartas vão para um lote novo.
+            {cards} {cards === 1 ? "carta" : "cartas"} · {formatBRL(totalCents)}. O leiloeiro calcula o frete e o código Pix aparece aqui, com o total. Cartas que você
+            ganhar depois ficam para o próximo pagamento.
           </p>
           <FormError message={error} />
           <Button block className="min-h-[52px]" pending={pending} onClick={() => void confirm()}>
-            Fechar e pedir envio
+            Pedir o frete e pagar
           </Button>
           <Button block variant="outline" disabled={pending} onClick={() => setOpen(false)}>
-            Continuar acumulando
+            Agora não
           </Button>
         </Sheet>
       )}
