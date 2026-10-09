@@ -120,7 +120,14 @@ describe("frete, Pix e confirmação", () => {
     const pays = await db.sql<{ status: string }>(`select status from payments where order_id = $1 order by created_at`, [orderId]);
     expect(pays.map((p) => p.status)).toEqual(["rejected", "pending"]);
 
+    // "Já paguei" sem arquivo: vai para conferência, não vira pago sozinho
+    expect((await db.rpc(buyer, "submit_payment_proof", [orderId, null])).code).toBe("proof_sent");
+    expect((await orderOf(buyer)).status).toBe("proof_sent");
+    // anexar depois guarda o arquivo; "Já paguei" de novo não apaga o que foi anexado
     expect((await db.rpc(buyer, "submit_payment_proof", [orderId, `${buyer}/${orderId}/b.jpg`])).code).toBe("proof_sent");
+    expect((await db.rpc(buyer, "submit_payment_proof", [orderId, null])).code).toBe("proof_sent");
+    const [cur] = await db.sql<{ proof_path: string }>(`select proof_path from payments where order_id = $1 and status = 'proof_sent'`, [orderId]);
+    expect(cur.proof_path).toBe(`${buyer}/${orderId}/b.jpg`);
     expect((await db.rpc(admin, "admin_confirm_payment", [orderId])).code).toBe("confirmed");
     expect((await orderOf(buyer)).status).toBe("paid");
     const [w] = await db.sql<{ status: string }>(`select status from wins where user_id = $1`, [buyer]);

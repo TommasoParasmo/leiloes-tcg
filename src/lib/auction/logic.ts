@@ -145,6 +145,15 @@ export function bidBoxTone(state: RoundState, remaining: number | null): BidBoxT
   return "neutral";
 }
 
+/** Frase da sala em palavras simples (no lugar da borda colorida). */
+export function bidHeadline(state: RoundState): { tone: "win" | "live" | "neutral"; text: string } {
+  if (state.status === "open" && state.leading_is_me) return { tone: "win", text: "Você está ganhando!" };
+  if (state.status === "open" && state.my_best_bid_cents != null && state.leading_nickname)
+    return { tone: "live", text: `${state.leading_nickname} deu mais que você` };
+  if (state.leading_nickname) return { tone: "neutral", text: `${state.leading_nickname} está ganhando` };
+  return { tone: "neutral", text: "Ninguém deu lance ainda" };
+}
+
 /** Horário do servidor em pt-BR com segundos (e milissegundos, para rapidez). */
 export function formatServerTime(iso: string, withMs = false): string {
   const d = new Date(iso);

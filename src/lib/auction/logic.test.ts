@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bidBoxTone, bidChoices, breakRemainingMs, clockOffsetMs, formatCountdown, mergePublicState, nextClockSync, nextEventStatus, optionsLabel, remainingMs, speedOptions, timerProgress } from "./logic";
+import { bidBoxTone, bidChoices, bidHeadline, breakRemainingMs, clockOffsetMs, formatCountdown, mergePublicState, nextClockSync, nextEventStatus, optionsLabel, remainingMs, speedOptions, timerProgress } from "./logic";
 import type { RoundState } from "./types";
 
 const base: RoundState = {
@@ -184,5 +184,15 @@ describe("speedOptions", () => {
   it("vira uma linha legível", () => {
     expect(optionsLabel([1000, 1200, 1400, 1600])).toBe("R$ 10 · 12 · 14 · 16");
     expect(optionsLabel([1250, 1350, 1450, 1550])).toBe("R$ 12,50 · 13,50 · 14,50 · 15,50");
+  });
+});
+
+describe("bidHeadline", () => {
+  it("diz em palavras quem está ganhando", () => {
+    const open = { ...base, status: "open" as const };
+    expect(bidHeadline({ ...open, leading_is_me: true, leading_nickname: "Eu" })).toEqual({ tone: "win", text: "Você está ganhando!" });
+    expect(bidHeadline({ ...open, leading_is_me: false, my_best_bid_cents: 900, leading_nickname: "Marina" })).toEqual({ tone: "live", text: "Marina deu mais que você" });
+    expect(bidHeadline({ ...open, leading_is_me: false, my_best_bid_cents: null, leading_nickname: "Marina" }).text).toBe("Marina está ganhando");
+    expect(bidHeadline({ ...open, leading_is_me: false, my_best_bid_cents: null, leading_nickname: null }).text).toBe("Ninguém deu lance ainda");
   });
 });

@@ -112,7 +112,12 @@ export function OrdersBoard({ orders, now }: { orders: Order[]; now: number }) {
               {o.status === "awaiting_shipping_quote" && <ActionButton primary onClick={() => setAction({ kind: "quote", order: o })}>Informar frete</ActionButton>}
               {o.status === "proof_sent" && (
                 <>
-                  <ActionButton onClick={() => void viewProof(o)}>Ver comprovante</ActionButton>
+                  {o.payment?.proof_path ? (
+                    <ActionButton onClick={() => void viewProof(o)}>Ver comprovante</ActionButton>
+                  ) : (
+                    // "Já paguei" sem arquivo: confira no extrato do banco
+                    <span className="self-center text-xs font-semibold text-muted">Disse que pagou, sem comprovante: confira no banco</span>
+                  )}
                   <ActionButton primary onClick={() => setAction({ kind: "confirm", order: o })}>Confirmar Pix</ActionButton>
                   <ActionButton onClick={() => setAction({ kind: "reject", order: o })}>Recusar</ActionButton>
                 </>

@@ -4,7 +4,7 @@ import { Spinner } from "@/components/ui/spinner";
 
 export type BuyButtonState = "waiting" | "ready" | "pending";
 
-/** Botão ARREMATAR do modo rapidez (design §5 BuyButton). */
+/** Botão "Quero esta carta" do modo rapidez (design §5 BuyButton). */
 export function BuyButton({ state, priceCents, onBuy }: { state: BuyButtonState; priceCents: number; onBuy: () => void }) {
   const waiting = state === "waiting";
   return (
@@ -19,9 +19,9 @@ export function BuyButton({ state, priceCents, onBuy }: { state: BuyButtonState;
         state === "pending" && "opacity-80",
       )}
     >
-      <span className="text-[26px] font-extrabold leading-none">{waiting ? "AGUARDE" : "ARREMATAR"}</span>
+      <span className="text-[26px] font-extrabold leading-none">{waiting ? "Espere" : "Quero esta carta"}</span>
       <span className="mt-1 font-body text-sm font-bold opacity-85">
-        {waiting ? "O leiloeiro vai liberar a rodada" : `Preço fixo ${formatBRL(priceCents)}`}
+        {waiting ? "O leiloeiro vai liberar a carta" : `Quem tocar primeiro leva por ${formatBRL(priceCents)}`}
       </span>
       {state === "pending" && <Spinner className="absolute right-4 top-4" />}
     </button>
