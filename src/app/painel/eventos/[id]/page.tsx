@@ -18,7 +18,7 @@ export default function EventoPage({ params, searchParams }: PageProps<"/painel/
     <Suspense
       fallback={
         <>
-          <AppBar back="/painel" title="Evento" />
+          <AppBar back="/painel/eventos" title="Evento" />
           <PageLoading rows={4} />
         </>
       }
@@ -50,7 +50,7 @@ async function Evento({ params, searchParams }: Pick<PageProps<"/painel/eventos/
   return (
     <>
       <AppBar
-        back="/painel"
+        back="/painel/eventos"
         title={`Leilão #${event.number}`}
         right={
           event.status === "live" ? (

@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { cn } from "@/lib/cn";
 
-export type AdminTab = "eventos" | "cartas" | "pedidos" | "clientes" | "whatsapp";
+export type AdminTab = "inicio" | "eventos" | "cartas" | "pedidos" | "clientes" | "whatsapp";
 
+// WhatsApp e Minha loja ficam no início do painel, fora das abas
 const tabs: { id: AdminTab; href: string; label: string }[] = [
-  { id: "eventos", href: "/painel", label: "Eventos" },
+  { id: "inicio", href: "/painel", label: "Início" },
+  { id: "eventos", href: "/painel/eventos", label: "Eventos" },
   { id: "cartas", href: "/painel/cartas", label: "Cartas" },
   { id: "pedidos", href: "/painel/pedidos", label: "Pedidos" },
   { id: "clientes", href: "/painel/clientes", label: "Clientes" },
-  { id: "whatsapp", href: "/painel/whatsapp", label: "WhatsApp" },
 ];
 
 /** Abas do painel do leiloeiro (no lugar da TabBar do comprador). */
