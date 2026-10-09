@@ -202,6 +202,7 @@ export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: st
     setPhotos([]);
     setValues((s) => ({ ...empty, tcg: s.tcg, collection: s.collection, language: s.language, condition: s.condition }));
     setTouched(false);
+    setMore(false);
     setDraftDecided(true);
     setErrors({});
     setPending(null);
@@ -321,18 +322,38 @@ export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: st
           </ul>
         )}
         {photos.length < MAX_PHOTOS && (
-          <label className="flex min-h-11 cursor-pointer items-center px-2 text-sm font-bold text-muted has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent">
-            {photos.length ? "+ Foto do verso ou detalhe" : "ou escolher da galeria"}
-            <input
-              ref={fileInput}
-              type="file"
-              accept="image/*"
-              multiple
-              className="sr-only"
-              onChange={(e) => void addPhotos(e.target.files)}
-              aria-describedby={errors.photos ? "fotos-erro" : undefined}
-            />
-          </label>
+          <div className="flex items-center gap-1 text-sm font-bold text-muted">
+            {photos.length > 0 && (
+              // mais uma foto pela câmera (verso, detalhe): nem todo celular oferece a câmera na galeria
+              <>
+                <label className="flex min-h-11 cursor-pointer items-center px-2 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent">
+                  + Foto do verso ou detalhe
+                  <input
+                    ref={cameraInput}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="sr-only"
+                    onChange={(e) => void addPhotos(e.target.files)}
+                    aria-describedby={errors.photos ? "fotos-erro" : undefined}
+                  />
+                </label>
+                <span aria-hidden>·</span>
+              </>
+            )}
+            <label className="flex min-h-11 cursor-pointer items-center px-2 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent">
+              {photos.length ? "Galeria" : "ou escolher da galeria"}
+              <input
+                ref={fileInput}
+                type="file"
+                accept="image/*"
+                multiple
+                className="sr-only"
+                onChange={(e) => void addPhotos(e.target.files)}
+                aria-describedby={errors.photos ? "fotos-erro" : undefined}
+              />
+            </label>
+          </div>
         )}
         {errors.photos && (
           <p id="fotos-erro" className="text-center text-xs font-semibold text-danger">
