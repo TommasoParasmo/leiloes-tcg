@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bidBoxTone, bidChoices, clockOffsetMs, formatCountdown, mergePublicState, nextClockSync, nextEventStatus, remainingMs, timerProgress } from "./logic";
+import { bidBoxTone, bidChoices, breakRemainingMs, clockOffsetMs, formatCountdown, mergePublicState, nextClockSync, nextEventStatus, remainingMs, timerProgress } from "./logic";
 import type { RoundState } from "./types";
 
 const base: RoundState = {
@@ -162,5 +162,15 @@ describe("nextEventStatus", () => {
     expect(nextEventStatus("live", "finished")).toBe("finished");
     expect(nextEventStatus(null, "live")).toBe("live");
     expect(nextEventStatus("scheduled", "live")).toBe("live");
+  });
+});
+
+describe("breakRemainingMs", () => {
+  it("conta o intervalo pelo relógio do servidor", () => {
+    const now = Date.parse("2026-10-09T20:00:00Z");
+    // aparelho 2 s atrasado em relação ao servidor
+    expect(breakRemainingMs("2026-10-09T20:05:00Z", now, 2000)).toBe(298_000);
+    expect(breakRemainingMs("2026-10-09T19:59:00Z", now, 0)).toBe(0);
+    expect(breakRemainingMs(null, now, 0)).toBeNull();
   });
 });

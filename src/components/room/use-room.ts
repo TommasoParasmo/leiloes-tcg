@@ -15,6 +15,8 @@ export interface RoomData {
   round: RoundState | null;
   card: CardInfo | null;
   eventStatus: EventInfo["status"] | null;
+  /** Fim do intervalo (pausa do leilão inteiro), ou null. */
+  breakUntil: string | null;
   offsetMs: number;
   reconnecting: boolean;
   /**
@@ -52,6 +54,16 @@ export function useRoom(
   const [eventStatus, setEventStatus] = useState<EventInfo["status"] | null>(initial.eventStatus ?? initial.round?.event_status ?? null);
   const [offsetMs, setOffset] = useState(() => (initial.round ? clockOffsetMs(initial.round.server_now, Date.now()) : 0));
   const [reconnecting, setReconnecting] = useState(false);
+  const [breakUntil, setBreakUntil] = useState<string | null>(null);
+  // aviso de intervalo atrasado não desfaz um mais novo: vale o relógio do servidor
+  const breakAt = useRef(0);
+  const applyBreak = useCallback((until: string | null | undefined, serverNow: string | undefined) => {
+    if (until === undefined) return;
+    const at = serverNow ? Date.parse(serverNow) : 0;
+    if (at && at < breakAt.current) return;
+    breakAt.current = at;
+    setBreakUntil(until);
+  }, []);
   const roundRef = useRef(initial.round);
   const cardIdRef = useRef(initial.card?.id ?? null);
   const latestServerNow = useRef(initial.round ? Date.parse(initial.round.server_now) : 0);
@@ -104,11 +116,12 @@ export function useRoom(
     lastRead.current = Date.now();
     if (!res) return;
     setEventStatus((prev) => nextEventStatus(prev, res.event_status));
+    applyBreak(res.break_until, res.server_now);
     const s = res.state;
     if (!s) return;
     if (!(await ensureCard(s))) return;
     applyState(s, sentAt);
-  }, [sb, eventId, ensureCard, applyState]);
+  }, [sb, eventId, ensureCard, applyState, applyBreak]);
 
   useEffect(() => {
     const fail = () => setReconnecting(true);
@@ -125,7 +138,9 @@ export function useRoom(
         }
       })
       .on("broadcast", { event: "event" }, ({ payload }) => {
-        setEventStatus((prev) => nextEventStatus(prev, (payload as { event_status: EventInfo["status"] }).event_status));
+        const p = payload as { event_status: EventInfo["status"]; break_until?: string | null; server_now?: string };
+        setEventStatus((prev) => nextEventStatus(prev, p.event_status));
+        applyBreak(p.break_until, p.server_now);
       })
       .on("broadcast", { event: "chat" }, ({ payload }) => {
         onChatRef.current?.({ type: "message", message: payload as ChatMessage });
@@ -165,12 +180,13 @@ export function useRoom(
       window.removeEventListener("online", onVisible);
       void sb.removeChannel(channel);
     };
-  }, [sb, eventId, refresh, isStale, commit]);
+  }, [sb, eventId, refresh, isStale, commit, applyBreak]);
 
   return {
     round,
     card,
     eventStatus,
+    breakUntil,
     offsetMs,
     reconnecting,
     applyState,

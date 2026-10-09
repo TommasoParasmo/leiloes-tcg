@@ -52,10 +52,18 @@ export async function fetchEvent(sb: SupabaseClient, eventId: string): Promise<E
 }
 
 /** Uma leitura para a sala: rodada da vez (estado pessoal) e status do evento. */
-export async function fetchRoomState(sb: SupabaseClient, eventId: string): Promise<{ event_status: EventInfo["status"]; state: RoundState | null } | null> {
+export interface RoomStateResult {
+  event_status: EventInfo["status"];
+  /** Fim do intervalo do leilão, quando o leiloeiro fez uma pausa. */
+  break_until: string | null;
+  server_now: string;
+  state: RoundState | null;
+}
+
+export async function fetchRoomState(sb: SupabaseClient, eventId: string): Promise<RoomStateResult | null> {
   const { data, error } = await sb.rpc("room_state", { p_event_id: eventId });
   if (error) throw error;
-  return (data as { event_status: EventInfo["status"]; state: RoundState | null } | null) ?? null;
+  return (data as RoomStateResult | null) ?? null;
 }
 
 export async function placeBid(sb: SupabaseClient, roundId: string, amountCents: number, key: string): Promise<AuctionResult> {

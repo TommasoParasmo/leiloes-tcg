@@ -107,6 +107,12 @@ export function remainingMs(state: RoundState, localNowMs: number, offsetMs: num
   return Math.max(0, Date.parse(state.ends_at) - (localNowMs + offsetMs));
 }
 
+/** Tempo que falta do intervalo do leilão (null fora do intervalo; 0 enquanto o servidor encerra). */
+export function breakRemainingMs(breakUntil: string | null, localNowMs: number, offsetMs: number): number | null {
+  if (!breakUntil) return null;
+  return Math.max(0, Date.parse(breakUntil) - (localNowMs + offsetMs));
+}
+
 /** Fração do cronômetro já consumida (0–1) para a barra de progresso. */
 export function timerProgress(state: RoundState, remaining: number | null): number {
   if (remaining == null || !state.duration_seconds) return 0;

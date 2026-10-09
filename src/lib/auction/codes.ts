@@ -27,6 +27,9 @@ export type AuctionCode =
   | "round_has_no_timer"
   | "another_round_active"
   | "event_not_live"
+  | "break_active"
+  | "break_started"
+  | "break_ended"
   | "already_sold"
   | "already_leading"
   | "amount_too_low"
@@ -143,6 +146,10 @@ export function auctionMessage(result: Pick<AuctionResult, "code" | "min_cents" 
       return "Você não tem permissão para isso";
     case "another_round_active":
       return "Encerre a rodada atual antes de abrir outra";
+    case "break_active":
+      return "O leilão já está em intervalo";
+    case "event_not_live":
+      return "O leilão não está ao vivo";
     case "reason_required":
       return "Informe o motivo";
     case "round_has_no_timer":

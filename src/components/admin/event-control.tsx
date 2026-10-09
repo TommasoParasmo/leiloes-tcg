@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { auctionMessage, type AuctionResult } from "@/lib/auction/codes";
-import { formatCountdown, remainingMs } from "@/lib/auction/logic";
+import { breakRemainingMs, formatCountdown, remainingMs } from "@/lib/auction/logic";
 import type { RoundState } from "@/lib/auction/types";
 import { adminRpc, fetchEventRounds, fetchFreeCards, roundSummary, type FreeCard, type QueueRound } from "@/lib/admin-data";
 import { formatBRL } from "@/lib/money";
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Kicker } from "@/components/ui/label";
 import { Pill } from "@/components/ui/pill";
 import { Sheet } from "@/components/ui/sheet";
+import { BreakBanner } from "@/components/room/break-banner";
 import { useCloseWhenExpired, useRoom, useTicker } from "@/components/room/use-room";
 import { EventCover } from "./event-cover";
 import { RoundSheet } from "./round-sheet";
@@ -44,6 +45,9 @@ export function EventControl({ event, sellerId, newCardId }: { event: AdminEvent
   const [sheet, setSheet] = useState<"new" | QueueRound | null>(null);
   // confirmação antes de tirar uma carta da fila
   const [removing, setRemoving] = useState<QueueRound | null>(null);
+  // escolha da duração do intervalo (pausa do leilão inteiro)
+  const [breakSheet, setBreakSheet] = useState(false);
+  const breakNow = useTicker(!!room.breakUntil);
   // carta recém-cadastrada a partir deste evento: abre o painel já com ela escolhida
   const [newCard, setNewCard] = useState<{ id: string; name: string } | null>(null);
   // a tela pode voltar com o estado preservado (navegação do Next), então compara com a última tratada
@@ -142,6 +146,40 @@ export function EventControl({ event, sellerId, newCardId }: { event: AdminEvent
         <p className={message.tone === "danger" ? "rounded-sm bg-danger/15 px-3 py-2 text-sm font-semibold text-danger" : "rounded-sm bg-win/15 px-3 py-2 text-sm font-semibold text-win"}>
           {message.text}
         </p>
+      )}
+
+      {(room.eventStatus ?? eventStatus) === "live" &&
+        (room.breakUntil ? (
+          <BreakBanner remaining={breakRemainingMs(room.breakUntil, breakNow, room.offsetMs) ?? 0}>
+            <Button className="mt-2 min-h-[52px] w-full" pending={busy === "break_end"} disabled={!!busy} onClick={() => act("break_end", () => adminRpc(sb, "admin_end_break", { p_event_id: event.id }))}>
+              Voltar agora
+            </Button>
+          </BreakBanner>
+        ) : (
+          <button type="button" disabled={!!busy} onClick={() => setBreakSheet(true)} className="flex min-h-11 items-center justify-center rounded-md border border-line text-sm font-bold">
+            Fazer intervalo
+          </button>
+        ))}
+      {breakSheet && (
+        <Sheet title="Intervalo" onClose={() => setBreakSheet(false)}>
+          <p className="text-sm text-muted">A carta aberta congela e ninguém dá lance. Volta sozinho no fim do tempo, ou quando você tocar em “Voltar agora”.</p>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {[2, 5, 10].map((min) => (
+              <Button
+                key={min}
+                className="min-h-[52px]"
+                pending={busy === `break_${min}`}
+                disabled={!!busy}
+                onClick={() => {
+                  setBreakSheet(false);
+                  void act(`break_${min}`, () => adminRpc(sb, "admin_start_break", { p_event_id: event.id, p_minutes: min }));
+                }}
+              >
+                {min} min
+              </Button>
+            ))}
+          </div>
+        </Sheet>
       )}
 
       {active ? (

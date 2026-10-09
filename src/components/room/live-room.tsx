@@ -4,11 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { auctionMessage, type AuctionResult } from "@/lib/auction/codes";
 import { buyNow, placeBid, withOneRetry } from "@/lib/auction/data";
-import { bidBoxTone, bidChoices, newIdempotencyKey, remainingMs, timerProgress } from "@/lib/auction/logic";
+import { bidBoxTone, bidChoices, breakRemainingMs, newIdempotencyKey, remainingMs, timerProgress } from "@/lib/auction/logic";
 import type { CardInfo, EventInfo, RoundState } from "@/lib/auction/types";
 import { applyChatEvent, type ChatEvent, type ChatMessage } from "@/lib/chat";
 import { formatBRL } from "@/lib/money";
 import { Pill } from "@/components/ui/pill";
+import { BreakBanner } from "./break-banner";
 import { BidBox } from "./bid-box";
 import { BidButtons } from "./bid-buttons";
 import { BidHistory } from "./bid-history";
@@ -40,8 +41,10 @@ export function LiveRoom({
   const { round, card } = room;
 
   const hasTimer = round?.status === "open" && !!round.ends_at;
-  const now = useTicker(hasTimer);
+  const now = useTicker(hasTimer || !!room.breakUntil);
   const remaining = round ? remainingMs(round, now, room.offsetMs) : null;
+  const breakLeft = breakRemainingMs(room.breakUntil, now, room.offsetMs);
+  const breakBanner = breakLeft != null && room.eventStatus === "live" && <BreakBanner remaining={breakLeft} />;
   useCloseWhenExpired(sb, round, remaining, room.applyState);
 
   const [pendingRaw, setPending] = useState<{ amount: number | null; roundId: string } | null>(null);
@@ -107,6 +110,7 @@ export function LiveRoom({
   if (!round || !card) {
     return (
       <Shell event={event} round={round} eventOver={eventOver} reconnecting={room.reconnecting} announce={{ polite: "", assertive: "" }}>
+        {breakBanner}
         {eventOver ? (
           <EventOver cancelled={room.eventStatus === "cancelled"} loggedIn={false} />
         ) : (
@@ -141,7 +145,9 @@ export function LiveRoom({
             ? `Você arrematou ${card.name} por ${formatBRL(round.current_amount_cents ?? 0)}.`
             : closed && round.leading_nickname
               ? `${round.leading_nickname} ${round.mode === "speed" ? "arrematou primeiro" : "venceu"}.`
-              : round.status === "paused"
+              : breakLeft != null
+                ? "Intervalo do leilão. A carta continua de onde parou."
+                : round.status === "paused"
                 ? "Rodada pausada pelo leiloeiro."
                 : closing
                   ? "Tempo esgotado. Encerrando."
@@ -151,6 +157,7 @@ export function LiveRoom({
   return (
     <Shell event={event} round={round} eventOver={eventOver} reconnecting={room.reconnecting} announce={announce}>
       {toast && <RoomToast {...toast} />}
+      {breakBanner}
       <CardArt photos={card.photos} label={label} alt={card.name} />
       <CardTitle card={card} extra={
           round.fixed_price_cents == null
