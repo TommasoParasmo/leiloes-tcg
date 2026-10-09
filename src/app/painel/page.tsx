@@ -8,7 +8,7 @@ import { requireAdmin } from "@/lib/admin";
 import { cn } from "@/lib/cn";
 import { eventDay } from "@/lib/events";
 import { formatBRL } from "@/lib/money";
-import { hubEventCta, type HubEvent } from "@/lib/painel";
+import { hubCutoff, hubEventCta, type HubEvent } from "@/lib/painel";
 
 export const metadata: Metadata = { title: "Painel · Bate Carta" };
 
@@ -27,6 +27,7 @@ export default function PainelPage() {
 /** Início do leiloeiro: quatro botões grandes, um para cada coisa do dia a dia. */
 async function Inicio() {
   const { sb, userId, sellerId } = await requireAdmin("/painel");
+  const now = new Date();
   const [{ data: me }, { data: events }, { data: owing }] = await Promise.all([
     sb.from("profiles").select("nickname").eq("id", userId).maybeSingle<{ nickname: string }>(),
     sb
@@ -34,6 +35,8 @@ async function Inicio() {
       .select("id, number, status, starts_at, rounds(id)")
       .eq("seller_id", sellerId)
       .in("status", ["live", "scheduled", "draft"])
+      // os antigos que ficaram para trás não ocupam o limite
+      .or(`status.eq.live,starts_at.is.null,starts_at.gte.${hubCutoff(now).toISOString()}`)
       .order("starts_at", { ascending: true, nullsFirst: false })
       .limit(20),
     sb.from("orders").select("user_id, total_cents").eq("seller_id", sellerId).in("status", ["awaiting_payment", "proof_sent"]),
@@ -46,7 +49,7 @@ async function Inicio() {
     startsAt: e.starts_at,
     cards: e.rounds.length,
   }));
-  const cta = hubEventCta(list, new Date());
+  const cta = hubEventCta(list, now);
   const debts = (owing ?? []) as { user_id: string; total_cents: number }[];
   const people = new Set(debts.map((d) => d.user_id)).size;
   const owed = debts.reduce((acc, d) => acc + Number(d.total_cents), 0);

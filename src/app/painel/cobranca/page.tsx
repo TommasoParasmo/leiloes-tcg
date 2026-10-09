@@ -5,7 +5,7 @@ import { AppBar } from "@/components/layout/app-bar";
 import { PageLoading } from "@/components/ui/page-loading";
 import { requireAdmin } from "@/lib/admin";
 import { fetchOrders } from "@/lib/orders";
-import { sortDebtors } from "@/lib/painel";
+import { isLate, sortDebtors } from "@/lib/painel";
 
 export const metadata: Metadata = { title: "Quem me deve · Painel · Bate Carta" };
 
@@ -34,7 +34,7 @@ async function Cobranca() {
         totalCents: o.total_cents,
         cards: o.items.length,
         dueAt: o.due_at,
-        late: !!o.due_at && Date.parse(o.due_at) < now,
+        late: isLate(o.status, o.due_at, now),
         proofSent: o.status === "proof_sent",
       })),
   );

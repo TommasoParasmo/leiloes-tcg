@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hubEventCta, sortDebtors, type Debtor, type HubEvent } from "./painel";
+import { hubCutoff, isLate, hubEventCta, sortDebtors, type Debtor, type HubEvent } from "./painel";
 
 const ev = (id: string, status: HubEvent["status"], startsAt: string | null): HubEvent => ({ id, number: 1, status, startsAt, cards: 3 });
 // 9/10/2026 15h em Brasília
@@ -20,5 +20,21 @@ describe("início do leiloeiro", () => {
     const d = (orderId: string, dueAt: string | null, late = false): Debtor => ({ orderId, nickname: orderId, totalCents: 100, cards: 1, dueAt, late, proofSent: false });
     const sorted = sortDebtors([d("c", null), d("b", "2026-10-20T00:00:00Z"), d("a", "2026-10-01T00:00:00Z", true), d("d", "2026-10-12T00:00:00Z")]);
     expect(sorted.map((x) => x.orderId)).toEqual(["a", "d", "b", "c"]);
+  });
+});
+
+describe("isLate", () => {
+  const now = Date.parse("2026-10-09T12:00:00Z");
+  it("só quem ainda não mandou comprovante fica atrasado", () => {
+    expect(isLate("awaiting_payment", "2026-10-09T11:00:00Z", now)).toBe(true);
+    expect(isLate("proof_sent", "2026-10-09T11:00:00Z", now)).toBe(false);
+    expect(isLate("awaiting_payment", "2026-10-09T13:00:00Z", now)).toBe(false);
+    expect(isLate("awaiting_payment", null, now)).toBe(false);
+  });
+});
+
+describe("hubCutoff", () => {
+  it("é 12 h antes de agora", () => {
+    expect(hubCutoff(new Date("2026-10-09T12:00:00Z")).toISOString()).toBe("2026-10-09T00:00:00.000Z");
   });
 });
