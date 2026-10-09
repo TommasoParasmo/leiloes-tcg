@@ -18,7 +18,7 @@ type Input = LabelInput & {
   ok: boolean;
   code: string;
   service_name: string | null;
-  label: { superfrete_order_id: string; status: string } | null;
+  label: { superfrete_order_id: string | null; status: string } | null;
 };
 
 function failure(e: unknown) {
@@ -56,14 +56,21 @@ export async function POST(request: NextRequest) {
   };
 
   if (action === "create") {
-    if (input.label && input.label.status !== "canceled") {
-      return NextResponse.json({ ok: false, code: "label_exists" });
-    }
     const requested = LABEL_SERVICES.find((s) => s.id === body?.service)?.id;
     const service: LabelServiceId | null = requested ?? serviceIdFromName(input.service_name);
     if (!service) return NextResponse.json({ ok: false, code: "service_required" });
+    // reserva o pedido no banco antes de criar lá fora: dois toques não geram duas etiquetas
+    const { data: reserved, error: reserveError } = await sb.rpc("admin_reserve_label", { p_order_id: orderId });
+    const reservation = reserved as { ok?: boolean; code?: string } | null;
+    if (reserveError || !reservation?.ok) return NextResponse.json({ ok: false, code: reservation?.code ?? "superfrete_unavailable" });
+    let label: { id: string; status: string };
     try {
-      const label = await createLabel(input, service);
+      label = await createLabel(input, service);
+    } catch (e) {
+      await sb.rpc("admin_release_label", { p_order_id: orderId });
+      return failure(e);
+    }
+    try {
       if (!(await save(label.id, label.status, null, null))) {
         // o envio já está no carrinho do SuperFrete; avisa para não gerar outro
         return NextResponse.json({ ok: false, code: "label_not_saved", superfreteOrderId: label.id });
@@ -75,6 +82,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (!input.label) return NextResponse.json({ ok: false, code: "label_missing" });
+  if (!input.label.superfrete_order_id) return NextResponse.json({ ok: false, code: "label_creating" });
   const id = input.label.superfrete_order_id;
   try {
     const info = await labelInfo(id);

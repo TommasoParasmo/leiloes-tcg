@@ -99,6 +99,9 @@ describe("etiqueta do SuperFrete", () => {
     ]);
     expect(body.volumes).toEqual(cardPackage(2));
     expect(body.options).toMatchObject({ non_commercial: true });
+    // limites do SuperFrete: rua 50, número 10, complemento 20
+    const long = labelRequestBody({ ...input, to: { ...input.to, address: "A".repeat(60), number: "1".repeat(12), complement: "c".repeat(30) } }, 1);
+    expect(long.to).toMatchObject({ address: "A".repeat(50), number: "1".repeat(10), complement: "c".repeat(20) });
   });
 
   it("cria no carrinho, consulta a situação e pega o PDF, sempre com o token", async () => {
@@ -130,6 +133,8 @@ describe("etiqueta do SuperFrete", () => {
     await expect(createLabel(input, 1, noId)).rejects.toEqual(new SuperfreteError("unavailable"));
     const http = vi.fn(async () => new Response(JSON.stringify({ url: "http://x/pdf" }))) as unknown as typeof fetch;
     expect(await printLabel("a", http)).toBeNull();
+    const cancelled = vi.fn(async () => new Response(JSON.stringify({ status: "Cancelled" }))) as unknown as typeof fetch;
+    expect(await labelInfo("a", cancelled)).toEqual({ status: "canceled", tracking: null });
     expect(labelIsPaid("pending")).toBe(false);
     expect(labelIsPaid("canceled")).toBe(false);
     expect(labelIsPaid("released")).toBe(true);

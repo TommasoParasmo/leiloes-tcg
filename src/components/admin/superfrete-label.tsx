@@ -15,6 +15,7 @@ const MESSAGES: Record<string, string> = {
   service_required: "Escolha PAC, SEDEX ou Mini Envios.",
   label_exists: "Este pedido já tem etiqueta no SuperFrete. Toque em Atualizar.",
   label_missing: "Este pedido ainda não tem etiqueta.",
+  label_creating: "A etiqueta ainda está sendo criada. Toque em Atualizar daqui a pouco.",
   label_not_saved: "A etiqueta foi para o carrinho do SuperFrete, mas não ficou salva aqui. Não gere outra: pague a que está lá.",
   superfrete_not_configured: "O SuperFrete não está configurado no site (falta o token na Vercel).",
   superfrete_rejected: "O SuperFrete recusou o token. Gere um novo no painel do SuperFrete e troque na Vercel.",
@@ -51,7 +52,8 @@ export function SuperfreteLabel({
       .then(({ data, error: e }) => {
         if (!live) return;
         if (e) return setLabel(null);
-        setLabel(data ? { status: data.status, url: data.label_url, tracking: data.tracking_code } : null);
+        // "failed": o SuperFrete recusou a última tentativa, então pode gerar de novo
+        setLabel(data && data.status !== "failed" ? { status: data.status, url: data.label_url, tracking: data.tracking_code } : null);
         if (data?.tracking_code) onTracking(data.tracking_code);
       });
     return () => {
@@ -87,7 +89,7 @@ export function SuperfreteLabel({
   }
 
   const canceled = label?.status === "canceled" || label?.status === "cancelled";
-  const paid = !!label && !canceled && labelIsPaid(label.status);
+  const paid = !!label && !canceled && label.status !== "creating" && labelIsPaid(label.status);
 
   return (
     <section aria-label="Etiqueta do SuperFrete" className="flex flex-col gap-2 rounded-md border border-line p-3">

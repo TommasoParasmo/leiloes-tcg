@@ -2,12 +2,12 @@
 -- O site manda o envio para o carrinho; depois de pago no SuperFrete, busca o rastreio e o PDF.
 -- Nada é pago pelo site. O token fica só no servidor (rota /api/etiqueta).
 
--- remetente da etiqueta (o CEP já existe: origin_cep)
+-- remetente da etiqueta (o CEP já existe: origin_cep); limites do SuperFrete: rua 50, número 10, complemento 20
 alter table public.seller_private
   add column sender_name text check (length(sender_name) between 2 and 80),
-  add column sender_street text check (length(sender_street) between 2 and 120),
-  add column sender_number text check (length(sender_number) between 1 and 20),
-  add column sender_complement text check (length(sender_complement) <= 60),
+  add column sender_street text check (length(sender_street) between 2 and 50),
+  add column sender_number text check (length(sender_number) between 1 and 10),
+  add column sender_complement text check (length(sender_complement) <= 20),
   add column sender_district text check (length(sender_district) between 2 and 80),
   add column sender_city text check (length(sender_city) between 2 and 80),
   add column sender_state text check (sender_state ~ '^[A-Z]{2}$');
@@ -16,8 +16,9 @@ alter table public.seller_private
 create table public.order_labels (
   order_id uuid primary key references public.orders (id),
   seller_id uuid not null references public.sellers (id),
-  superfrete_order_id text not null check (superfrete_order_id ~ '^[A-Za-z0-9_-]{1,64}$'),
-  status text not null default 'pending' check (length(status) between 1 and 30),
+  -- vazio enquanto a etiqueta está sendo criada (status 'creating')
+  superfrete_order_id text check (superfrete_order_id ~ '^[A-Za-z0-9_-]{1,64}$'),
+  status text not null default 'creating' check (length(status) between 1 and 30),
   label_url text check (label_url ~ '^https://' and length(label_url) <= 1000),
   tracking_code text check (length(tracking_code) between 5 and 40),
   created_at timestamptz not null default now(),
@@ -47,9 +48,9 @@ begin
    where id = auth.uid() and role = 'admin' and status = 'active';
   if v_seller is null then return jsonb_build_object('ok', false, 'code', 'forbidden'); end if;
   if (v_name is not null and length(v_name) not between 2 and 80)
-     or (v_street is not null and length(v_street) not between 2 and 120)
-     or (v_number is not null and length(v_number) > 20)
-     or (v_compl is not null and length(v_compl) > 60)
+     or (v_street is not null and length(v_street) not between 2 and 50)
+     or (v_number is not null and length(v_number) > 10)
+     or (v_compl is not null and length(v_compl) > 20)
      or (v_district is not null and length(v_district) not between 2 and 80)
      or (v_city is not null and length(v_city) not between 2 and 80)
      or (v_state is not null and v_state !~ '^[A-Z]{2}$') then
@@ -139,7 +140,9 @@ begin
   end if;
 
   select * into l from public.order_labels where order_id = o.id;
-  if found and l.superfrete_order_id <> v_id and l.status <> 'canceled' then
+  -- só grava por cima da reserva feita por admin_reserve_label, da mesma etiqueta ou de uma cancelada
+  if found and l.superfrete_order_id is not null and l.superfrete_order_id <> v_id
+     and l.status not in ('canceled', 'cancelled') then
     return jsonb_build_object('ok', false, 'code', 'label_exists');
   end if;
   insert into public.order_labels (order_id, seller_id, superfrete_order_id, status, label_url, tracking_code)
@@ -149,10 +152,53 @@ begin
         label_url = coalesce(excluded.label_url, case when public.order_labels.superfrete_order_id = excluded.superfrete_order_id then public.order_labels.label_url end),
         tracking_code = coalesce(excluded.tracking_code, case when public.order_labels.superfrete_order_id = excluded.superfrete_order_id then public.order_labels.tracking_code end),
         updated_at = now();
-  if l.order_id is null or l.superfrete_order_id <> v_id then
+  if l.order_id is null or l.superfrete_order_id is distinct from v_id then
     perform public.app_audit(o.seller_id, 'order.label', 'order', o.id, jsonb_build_object('superfrete_order_id', v_id));
   end if;
   return jsonb_build_object('ok', true, 'code', 'saved');
+end;
+$$;
+
+-- Reserva o pedido antes de chamar o SuperFrete: dois toques (ou duas abas) não criam duas etiquetas.
+-- Uma reserva parada há mais de 2 minutos (servidor caiu no meio) pode ser refeita.
+create or replace function public.admin_reserve_label(p_order_id uuid)
+returns jsonb
+language plpgsql security definer set search_path = public
+as $$
+declare
+  o public.orders;
+  v_ok boolean;
+begin
+  select * into o from public.orders where id = p_order_id for update;
+  if not found then return jsonb_build_object('ok', false, 'code', 'order_not_found'); end if;
+  if not public.app_is_admin(o.seller_id) then return jsonb_build_object('ok', false, 'code', 'forbidden'); end if;
+  if o.status not in ('paid', 'shipped') then return jsonb_build_object('ok', false, 'code', 'order_wrong_status'); end if;
+  insert into public.order_labels (order_id, seller_id, superfrete_order_id, status)
+  values (o.id, o.seller_id, null, 'creating')
+  on conflict (order_id) do update
+    set superfrete_order_id = null, status = 'creating', label_url = null, tracking_code = null, updated_at = now()
+    where public.order_labels.status in ('canceled', 'cancelled', 'failed')
+       or (public.order_labels.status = 'creating' and public.order_labels.updated_at < now() - interval '2 minutes')
+  returning true into v_ok;
+  if v_ok is null then return jsonb_build_object('ok', false, 'code', 'label_exists'); end if;
+  return jsonb_build_object('ok', true, 'code', 'reserved');
+end;
+$$;
+
+-- O SuperFrete recusou: libera a reserva para tentar de novo.
+create or replace function public.admin_release_label(p_order_id uuid)
+returns jsonb
+language plpgsql security definer set search_path = public
+as $$
+declare
+  o public.orders;
+begin
+  select * into o from public.orders where id = p_order_id;
+  if not found then return jsonb_build_object('ok', false, 'code', 'order_not_found'); end if;
+  if not public.app_is_admin(o.seller_id) then return jsonb_build_object('ok', false, 'code', 'forbidden'); end if;
+  update public.order_labels set status = 'failed', updated_at = now()
+   where order_id = o.id and status = 'creating' and superfrete_order_id is null;
+  return jsonb_build_object('ok', true, 'code', 'released');
 end;
 $$;
 
@@ -162,3 +208,7 @@ revoke execute on function public.admin_save_label(uuid, text, text, text, text)
 grant execute on function public.admin_update_sender(text, text, text, text, text, text, text) to authenticated;
 grant execute on function public.admin_label_input(uuid) to authenticated;
 grant execute on function public.admin_save_label(uuid, text, text, text, text) to authenticated;
+revoke execute on function public.admin_reserve_label(uuid) from public, anon;
+revoke execute on function public.admin_release_label(uuid) from public, anon;
+grant execute on function public.admin_reserve_label(uuid) to authenticated;
+grant execute on function public.admin_release_label(uuid) to authenticated;

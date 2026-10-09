@@ -40,6 +40,10 @@ describe("remetente da etiqueta", () => {
     expect((await db.rpc(buyer, "admin_update_sender", sender)).code).toBe("forbidden");
     expect((await db.rpc(admin, "admin_update_sender", ["Loja", "Rua", "1", "", "Bairro", "Cidade", "São"])).code).toBe("invalid_request");
     expect((await db.rpc(admin, "admin_update_sender", ["L", "Rua X", "1", "", "Bairro", "Cidade", "SP"])).code).toBe("invalid_request");
+    // limites do SuperFrete: rua 50, número 10, complemento 20
+    expect((await db.rpc(admin, "admin_update_sender", ["Loja", "R".repeat(51), "1", "", "Bairro", "Cidade", "SP"])).code).toBe("invalid_request");
+    expect((await db.rpc(admin, "admin_update_sender", ["Loja", "Rua X", "12345678901", "", "Bairro", "Cidade", "SP"])).code).toBe("invalid_request");
+    expect((await db.rpc(admin, "admin_update_sender", ["Loja", "Rua X", "1", "c".repeat(21), "Bairro", "Cidade", "SP"])).code).toBe("invalid_request");
     expect((await db.rpc(admin, "admin_update_sender", sender)).code).toBe("saved");
     const [p] = await db.sql<{ sender_state: string; sender_complement: string }>(
       `select sender_state, sender_complement from seller_private where seller_id = $1`,
@@ -118,5 +122,41 @@ describe("etiqueta do SuperFrete", () => {
       [orderId],
     );
     expect(n).toEqual({ superfrete_order_id: "SF2", label_url: null, tracking_code: null });
+  });
+
+  it("reserva antes de criar: o segundo toque não gera outra; recusa libera; cancelada (qualquer grafia) libera", async () => {
+    await db.rpc(admin, "admin_update_store", ["pix@loja.com", "Loja Teste", "Sao Paulo", "04538133", ""]);
+    await db.rpc(admin, "admin_update_sender", sender);
+    const { buyer, orderId } = await paidOrder("PAC");
+    const reserve = (u = admin) => db.rpc(u, "admin_reserve_label", [orderId]);
+    expect((await reserve()).code).toBe("order_wrong_status");
+    await db.rpc(admin, "admin_confirm_payment", [orderId]);
+    expect((await reserve(buyer)).code).toBe("forbidden");
+
+    // dois pedidos ao mesmo tempo: só um reserva
+    const both = await Promise.all([reserve(), reserve()]);
+    expect(both.map((r) => r.code).sort()).toEqual(["label_exists", "reserved"]);
+    expect((await db.rpc(admin, "admin_label_input", [orderId])).label).toEqual({ superfrete_order_id: null, status: "creating" });
+
+    // o SuperFrete recusou: libera e dá para tentar de novo
+    expect((await db.rpc(admin, "admin_release_label", [orderId])).code).toBe("released");
+    expect((await reserve()).code).toBe("reserved");
+    expect((await db.rpc(admin, "admin_save_label", [orderId, "SF9", "pending", null, null])).code).toBe("saved");
+    expect((await reserve()).code).toBe("label_exists");
+    // soltar depois de criada não apaga a etiqueta
+    await db.rpc(admin, "admin_release_label", [orderId]);
+    expect((await db.rpc(admin, "admin_label_input", [orderId])).label).toEqual({ superfrete_order_id: "SF9", status: "pending" });
+
+    for (const status of ["cancelled", "canceled"]) {
+      const [{ id }] = await db.sql<{ id: string }>(`select superfrete_order_id id from order_labels where order_id = $1`, [orderId]);
+      await db.rpc(admin, "admin_save_label", [orderId, id, status, null, null]);
+      expect((await reserve()).code).toBe("reserved");
+      expect((await db.rpc(admin, "admin_save_label", [orderId, `SF${status.length}`, "pending", null, null])).code).toBe("saved");
+    }
+
+    // reserva parada (servidor caiu no meio) vence em 2 minutos
+    await db.sql(`update order_labels set status = 'creating', superfrete_order_id = null, updated_at = now() - interval '3 minutes' where order_id = $1`, [orderId]);
+    expect((await reserve()).code).toBe("reserved");
+    expect((await reserve()).code).toBe("label_exists");
   });
 });

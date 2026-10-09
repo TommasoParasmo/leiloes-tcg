@@ -16,6 +16,9 @@ export function validateSender(v: SenderValues): Partial<Record<keyof SenderValu
   const errs: Partial<Record<keyof SenderValues, string>> = {};
   if (v.name.trim().length < 2) errs.name = "Informe o nome de quem envia";
   if (v.street.trim().length < 2) errs.street = "Informe a rua";
+  else if (v.street.trim().length > 50) errs.street = "Até 50 letras (limite do SuperFrete). Abrevie, ex.: Av.";
+  if (v.number.trim().length > 10) errs.number = "Até 10 caracteres";
+  if (v.complement.trim().length > 20) errs.complement = "Até 20 caracteres (limite do SuperFrete)";
   if (!v.number.trim()) errs.number = "Informe o número (ou S/N)";
   if (v.district.trim().length < 2) errs.district = "Informe o bairro";
   if (v.city.trim().length < 2) errs.city = "Informe a cidade";
@@ -107,10 +110,10 @@ export function SenderForm({ initial, originCep }: { initial: SenderValues; orig
         )}
         {cepNote && <p className="text-sm text-danger">{cepNote}</p>}
         <Field label="Nome de quem envia" value={v.name} onChange={(e) => set("name", e.target.value)} maxLength={80} error={errors.name} autoComplete="name" />
-        <Field label="Rua" value={v.street} onChange={(e) => set("street", e.target.value)} maxLength={120} error={errors.street} autoComplete="address-line1" />
+        <Field label="Rua" value={v.street} onChange={(e) => set("street", e.target.value)} maxLength={50} error={errors.street} autoComplete="address-line1" />
         <div className="grid grid-cols-2 gap-2">
-          <Field label="Número" value={v.number} onChange={(e) => set("number", e.target.value)} maxLength={20} error={errors.number} />
-          <Field label="Complemento" value={v.complement} onChange={(e) => set("complement", e.target.value)} maxLength={60} autoComplete="address-line2" />
+          <Field label="Número" value={v.number} onChange={(e) => set("number", e.target.value)} maxLength={10} error={errors.number} />
+          <Field label="Complemento" value={v.complement} onChange={(e) => set("complement", e.target.value)} maxLength={20} error={errors.complement} autoComplete="address-line2" />
         </div>
         <Field label="Bairro" value={v.district} onChange={(e) => set("district", e.target.value)} maxLength={80} error={errors.district} />
         <div className="grid grid-cols-[1fr_5rem] gap-2">

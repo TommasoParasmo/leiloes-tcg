@@ -157,9 +157,14 @@ export interface LabelInput {
   items: { name: string; amount_cents: number }[];
 }
 
+/** Limites de tamanho do SuperFrete (rua 50, número 10, complemento 20): o resto é cortado. */
+const FIELD_LIMITS: Partial<Record<keyof LabelAddress, number>> = { address: 50, number: 10, complement: 20 };
+
 const clean = (a: LabelAddress) => {
   const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(a)) if (typeof v === "string" && v.trim()) out[k] = v.trim();
+  for (const [k, v] of Object.entries(a) as [keyof LabelAddress, unknown][]) {
+    if (typeof v === "string" && v.trim()) out[k] = v.trim().slice(0, FIELD_LIMITS[k] ?? 200).trim();
+  }
   return out;
 };
 
@@ -193,7 +198,9 @@ export interface LabelInfo {
 export async function labelInfo(id: string, fetchImpl: typeof fetch = fetch): Promise<LabelInfo> {
   const json = (await call(`/api/v0/order/info/${encodeURIComponent(id)}`, { method: "GET" }, fetchImpl)) as { status?: unknown; tracking?: unknown } | null;
   const tracking = typeof json?.tracking === "string" && /^[A-Za-z0-9]{5,40}$/.test(json.tracking.trim()) ? json.tracking.trim().toUpperCase() : null;
-  return { status: typeof json?.status === "string" && json.status ? json.status.toLowerCase() : "pending", tracking };
+  const status = typeof json?.status === "string" && json.status ? json.status.toLowerCase() : "pending";
+  // o SuperFrete escreve "canceled" e "cancelled"; guarda sempre uma forma só
+  return { status: status === "cancelled" ? "canceled" : status, tracking };
 }
 
 /** Etiqueta paga já pode ser impressa. */
