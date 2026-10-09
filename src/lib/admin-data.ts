@@ -25,6 +25,8 @@ export interface FreeCard {
   name: string;
   variant: string | null;
   card_number: string | null;
+  /** Preço fixo da rapidez, definido no cadastro (null em cartas antigas). */
+  price_cents: number | null;
   photo: string | null;
 }
 
@@ -58,7 +60,7 @@ export async function fetchEventRounds(sb: SupabaseClient, eventId: string): Pro
 export async function fetchFreeCards(sb: SupabaseClient, sellerId: string): Promise<FreeCard[]> {
   const { data, error } = await sb
     .from("cards")
-    .select("id, name, variant, card_number, card_photos(storage_path, position), rounds(status), wins(status)")
+    .select("id, name, variant, card_number, price_cents, card_photos(storage_path, position), rounds(status), wins(status)")
     .eq("seller_id", sellerId)
     .order("created_at", { ascending: false })
     .limit(300);
@@ -67,7 +69,14 @@ export async function fetchFreeCards(sb: SupabaseClient, sellerId: string): Prom
   const live: RoundStatus[] = ["queued", "open", "paused"];
   return ((data ?? []) as unknown as Row[])
     .filter((c) => !c.rounds.some((r) => live.includes(r.status)) && !c.wins.some((w) => w.status !== "cancelled"))
-    .map((c) => ({ id: c.id, name: c.name, variant: c.variant, card_number: c.card_number, photo: firstPhoto(sb, c.card_photos) }));
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      variant: c.variant,
+      card_number: c.card_number,
+      price_cents: c.price_cents == null ? null : Number(c.price_cents),
+      photo: firstPhoto(sb, c.card_photos),
+    }));
 }
 
 export async function adminRpc(sb: SupabaseClient, fn: string, args: Record<string, unknown>): Promise<AuctionResult> {

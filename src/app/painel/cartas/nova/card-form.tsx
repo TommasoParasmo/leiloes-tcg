@@ -26,9 +26,10 @@ type Values = {
   variant: string;
   condition: string;
   liga: string;
+  price: string;
   notes: string;
 };
-const empty: Values = { name: "", tcg: "Pokémon", collection: "", cardNumber: "", language: "PT", variant: "", condition: "NM", liga: "", notes: "" };
+const empty: Values = { name: "", tcg: "Pokémon", collection: "", cardNumber: "", language: "PT", variant: "", condition: "NM", liga: "", notes: "", price: "" };
 
 // Rascunho dos campos de texto no aparelho (fotos não cabem no localStorage).
 const draftKey = (sellerId: string) => `bate-carta:rascunho-carta:${sellerId}`;
@@ -133,10 +134,13 @@ export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: st
   async function save(then: "stay" | "leave") {
     if (pending) return;
     const liga = values.liga.trim() ? parseBRL(values.liga) : null;
+    const price = parseBRL(values.price);
     const errs: typeof errors = {
       name: values.name.trim() ? undefined : "Informe o nome da carta",
       photos: photos.length ? undefined : "Adicione pelo menos uma foto",
       liga: values.liga.trim() && liga == null ? "Use o formato 12,50" : undefined,
+      // só rapidez por enquanto: quem tocar primeiro leva por este preço
+      price: price && price > 0 ? undefined : values.price.trim() ? "Use o formato 25 ou 12,50" : "Informe o preço da carta",
     };
     setErrors(errs);
     if (errs.liga) setMore(true);
@@ -175,6 +179,7 @@ export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: st
         variant: values.variant.trim() || null,
         condition: values.condition || null,
         liga_price_cents: liga,
+        price_cents: price,
         notes: values.notes.trim() || null,
       })
         // cancela de verdade a gravação que travar (o servidor desiste em vez de gravar depois)
@@ -374,6 +379,16 @@ export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: st
           }}
         />
       )}
+
+      <Field
+        label="Preço (R$)"
+        placeholder="Ex.: 25"
+        inputMode="decimal"
+        value={values.price}
+        onChange={set("price")}
+        error={errors.price}
+        hint="Quem tocar primeiro em “Quero esta carta” leva por este valor."
+      />
 
       <div className="flex items-center justify-between gap-2.5 rounded-sm border border-line bg-surface px-3 py-2 text-[13px]">
         <span className="min-w-0">{cardSummary(values)}</span>
