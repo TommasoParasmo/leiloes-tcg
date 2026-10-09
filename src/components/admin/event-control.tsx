@@ -17,6 +17,7 @@ import { BreakBanner } from "@/components/room/break-banner";
 import { useCloseWhenExpired, useRoom, useTicker } from "@/components/room/use-room";
 import { EventCover } from "./event-cover";
 import { RoundSheet } from "./round-sheet";
+import { SoldPanel } from "./sold-panel";
 
 export interface AdminEvent {
   id: string;
@@ -32,7 +33,7 @@ export interface AdminEvent {
  * ao vivo da sala; a fila é relida a cada mudança. Todo botão chama uma função admin_*
  * no banco, que confere permissão e estado antes de agir.
  */
-export function EventControl({ event, sellerId, newCardId }: { event: AdminEvent; sellerId: string; newCardId?: string }) {
+export function EventControl({ event, sellerId, newCardId, groupUrl }: { event: AdminEvent; sellerId: string; newCardId?: string; groupUrl: string | null }) {
   const router = useRouter();
   const [sb] = useState(createClient);
   const room = useRoom(sb, event.id, { round: null, card: null });
@@ -232,9 +233,10 @@ export function EventControl({ event, sellerId, newCardId }: { event: AdminEvent
         </section>
       ) : (
         <section className="flex flex-col gap-2">
+          {(room.round?.status === "closed" || room.round?.status === "cancelled") && <SoldPanel sb={sb} round={room.round} cardName={room.card?.name ?? null} groupUrl={groupUrl} />}
           <Button
             block
-            className="min-h-[52px]"
+            className="min-h-[72px] font-display text-xl"
             disabled={!queued.length}
             pending={busy === "next"}
             onClick={() =>
@@ -245,14 +247,9 @@ export function EventControl({ event, sellerId, newCardId }: { event: AdminEvent
               )
             }
           >
-            {queued.length ? "Liberar próxima carta" : "Adicione cartas à fila"}
+            {queued.length ? `${room.round ? "Próxima carta" : "Começar com"}: ${queued[0].card.name}` : "Acabaram as cartas"}
           </Button>
-          {room.round?.status === "closed" && (
-            <p className="text-center text-sm text-muted">
-              Última: <b className="text-text">{room.card?.name}</b>{" "}
-              {room.round.leading_nickname ? `· ${room.round.leading_nickname} · ${formatBRL(room.round.current_amount_cents ?? 0)}` : "· sem lances"}
-            </p>
-          )}
+          {!queued.length && <p className="text-center text-sm text-muted">Adicione mais cartas abaixo ou encerre o leilão.</p>}
         </section>
       )}
 
@@ -418,9 +415,10 @@ function ActiveRound({
   const [confirmClose, setConfirmClose] = useState(false);
   const [reason, setReason] = useState("");
   const paused = round.status === "paused";
+  const leader = round.leading_nickname && round.current_amount_cents != null;
 
   return (
-    <section aria-label="Rodada atual" className="flex flex-col gap-2">
+    <section aria-label="Carta no ar" className="flex flex-col gap-3">
       <div className="flex items-center gap-3 rounded-md border border-line bg-surface p-2.5">
         {card?.photos[0] ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -430,62 +428,43 @@ function ActiveRound({
         )}
         <div className="min-w-0 flex-1">
           <p className="truncate font-bold">{card?.name ?? "…"}</p>
-          <p className="text-xs text-muted">{roundSummary(round)}</p>
-          <p className="text-xs tabular">
-            {round.current_amount_cents != null ? (
+          <p className="text-sm tabular">
+            {leader ? (
               <>
-                <b>{formatBRL(round.current_amount_cents)}</b> · {round.leading_nickname} · {round.bid_count} {round.bid_count === 1 ? "lance" : "lances"}
+                <b className="text-lg">{formatBRL(round.current_amount_cents ?? 0)}</b> · {round.leading_nickname}
               </>
             ) : (
               <span className="text-muted">Sem lances ainda</span>
             )}
           </p>
         </div>
-        <div className="text-right">
-          {paused ? (
-            <Pill tone="warn">Pausada</Pill>
-          ) : remaining != null ? (
-            <p suppressHydrationWarning className={`font-display text-xl font-extrabold tabular ${remaining <= 10_000 ? "text-live" : "text-accent-text"}`}>
-              {formatCountdown(remaining)}
-            </p>
-          ) : (
-            <Pill tone="live" dot>
-              Aberta
-            </Pill>
-          )}
-        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="py-1 text-center">
         {paused ? (
-          <Button variant="outline" pending={busy === "resume"} disabled={!!busy} onClick={onResume}>
-            Retomar
-          </Button>
+          <p className="font-display text-4xl font-extrabold text-warn">Pausada</p>
+        ) : remaining != null ? (
+          <p suppressHydrationWarning aria-label="Tempo restante" className={`font-display text-[72px] font-extrabold leading-none tabular ${remaining <= 10_000 ? "text-live" : "text-accent-text"}`}>
+            {formatCountdown(remaining)}
+          </p>
         ) : (
-          <Button variant="outline" pending={busy === "pause"} disabled={!!busy} onClick={onPause}>
-            Pausar
-          </Button>
+          <Pill tone="live" dot>
+            Aberta
+          </Pill>
         )}
-        <Button variant="outline" pending={busy === "extend"} disabled={!!busy || round.close_mode !== "timer" || paused} onClick={onExtend}>
-          +15 s
-        </Button>
-        <Button pending={busy === "close"} disabled={!!busy} onClick={() => setConfirmClose(true)}>
-          Encerrar agora
-        </Button>
-        <Button variant="danger" disabled={!!busy} onClick={() => setCancelling((v) => !v)} aria-expanded={cancelling}>
-          Cancelar rodada
-        </Button>
+        {!paused && remaining != null && <p className="mt-1 text-xs text-muted">A carta fecha sozinha no fim do tempo.</p>}
       </div>
-      {confirmClose && (
-        <Sheet title="Encerrar a rodada agora?" onClose={() => setConfirmClose(false)}>
-          <p className="text-sm text-muted">
-            {round.leading_nickname && round.current_amount_cents != null
-              ? `${round.leading_nickname} arremata ${card?.name ?? "a carta"} por ${formatBRL(round.current_amount_cents)}. Não dá para desfazer.`
-              : "Ninguém deu lance: a carta volta a ficar livre para outro evento."}
+
+      {confirmClose ? (
+        <div className="flex flex-col gap-2 rounded-md border border-line bg-surface p-3">
+          <p className="text-sm">
+            {leader
+              ? `${round.leading_nickname} leva ${card?.name ?? "a carta"} por ${formatBRL(round.current_amount_cents ?? 0)}. Não dá para desfazer.`
+              : "Ninguém deu lance: a carta volta para as cartas livres."}
           </p>
           <div className="grid grid-cols-2 gap-2">
             <Button variant="secondary" onClick={() => setConfirmClose(false)}>
-              Continuar rodada
+              Continuar
             </Button>
             <Button
               pending={busy === "close"}
@@ -494,11 +473,35 @@ function ActiveRound({
                 onClose();
               }}
             >
-              Encerrar
+              Sim, fechar
             </Button>
           </div>
-        </Sheet>
+        </div>
+      ) : (
+        <Button block className="min-h-[72px] font-display text-xl" pending={busy === "close"} disabled={!!busy} onClick={() => setConfirmClose(true)}>
+          Fechar agora
+        </Button>
       )}
+
+      <div className="flex justify-center gap-1 text-sm font-bold text-muted">
+        {paused ? (
+          <SmallAction disabled={!!busy} onClick={onResume}>
+            Continuar
+          </SmallAction>
+        ) : (
+          <SmallAction disabled={!!busy} onClick={onPause}>
+            Pausar
+          </SmallAction>
+        )}
+        <span aria-hidden className="self-center">·</span>
+        <SmallAction disabled={!!busy || round.close_mode !== "timer" || paused} onClick={onExtend}>
+          +15 s
+        </SmallAction>
+        <span aria-hidden className="self-center">·</span>
+        <SmallAction disabled={!!busy} onClick={() => setCancelling((v) => !v)} aria-expanded={cancelling}>
+          Cancelar carta
+        </SmallAction>
+      </div>
       {cancelling && (
         <form
           className="flex flex-col gap-2 rounded-md border border-danger/50 bg-danger/10 p-3"
@@ -511,7 +514,7 @@ function ActiveRound({
           }}
         >
           <label htmlFor="cancel-reason" className="text-sm font-bold">
-            Motivo do cancelamento
+            Por que cancelar?
           </label>
           <input
             id="cancel-reason"
@@ -521,9 +524,9 @@ function ActiveRound({
             maxLength={200}
             className="min-h-[46px] rounded-sm border border-line bg-surface px-3.5 text-md"
           />
-          <p className="text-xs text-muted">Os lances desta rodada são descartados e ninguém arremata.</p>
+          <p className="text-xs text-muted">Os lances desta carta são descartados e ninguém leva.</p>
           <Button type="submit" variant="danger" disabled={!reason.trim() || !!busy} pending={busy === "cancel"}>
-            Confirmar cancelamento
+            Cancelar carta
           </Button>
         </form>
       )}
@@ -541,6 +544,14 @@ function ActiveRound({
         </div>
       )}
     </section>
+  );
+}
+
+function SmallAction({ children, ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button type="button" className="min-h-11 px-2 underline-offset-2 hover:underline disabled:opacity-40" {...rest}>
+      {children}
+    </button>
   );
 }
 
