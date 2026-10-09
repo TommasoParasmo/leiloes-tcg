@@ -5,7 +5,7 @@ import type { RoundState } from "@/lib/auction/types";
 import { publicEnv } from "@/lib/env";
 import { formatBRL } from "@/lib/money";
 import type { createClient } from "@/lib/supabase/client";
-import { buildRoundResultMessage, groupNotice, type RoundResultPayload } from "@/lib/whatsapp/message";
+import { buildRoundResultMessage, groupNotice, whatsappShareUrl, type RoundResultPayload } from "@/lib/whatsapp/message";
 
 type Sb = ReturnType<typeof createClient>;
 type Notice = { id: string; text: string; sent: boolean };
@@ -17,6 +17,7 @@ type Notice = { id: string; text: string; sent: boolean };
 export function SoldPanel({ sb, round, cardName, groupUrl }: { sb: Sb; round: RoundState; cardName: string | null; groupUrl: string | null }) {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
   const sold = round.status === "closed" && round.leading_nickname != null && round.current_amount_cents != null;
 
   useEffect(() => {
@@ -41,17 +42,24 @@ export function SoldPanel({ sb, round, cardName, groupUrl }: { sb: Sb; round: Ro
     };
   }, [sb, round.id]);
 
-  async function avisar(n: Notice) {
-    const link = groupNotice(n.text, groupUrl);
-    if (link.copy) {
-      // copia no mesmo toque: o navegador só deixa copiar durante o toque
-      navigator.clipboard?.writeText(n.text).then(
-        () => setCopied(true),
-        () => {},
-      );
-    }
+  async function markSent(n: Notice) {
     setNotice({ ...n, sent: true });
     await adminRpc(sb, "admin_whatsapp_mark", { p_message_id: n.id, p_sent: true, p_error: null }).catch(() => {});
+  }
+
+  async function avisar(n: Notice) {
+    if (!groupNotice(n.text, groupUrl).copy) return markSent(n);
+    // link de grupo não leva texto: só conta como avisado se o texto foi mesmo copiado
+    // (copia no mesmo toque, o navegador só deixa copiar durante o toque)
+    try {
+      if (!navigator.clipboard) throw new Error("sem área de transferência");
+      await navigator.clipboard.writeText(n.text);
+      setCopied(true);
+      setCopyFailed(false);
+      await markSent(n);
+    } catch {
+      setCopyFailed(true);
+    }
   }
 
   return (
@@ -80,7 +88,17 @@ export function SoldPanel({ sb, round, cardName, groupUrl }: { sb: Sb; round: Ro
           >
             {notice.sent ? "Avisar no grupo de novo" : "Avisar no grupo"}
           </a>
-          {groupUrl && <p className="text-xs text-muted">{copied ? "Texto copiado. No grupo, segure o campo e toque em Colar." : "O texto vai copiado: no grupo, é só colar e enviar."}</p>}
+          {copyFailed ? (
+            <p className="text-xs text-danger">
+              Não deu para copiar o texto.{" "}
+              {/* sem área de transferência, o texto pronto vai pelo wa.me: escolha o grupo na lista */}
+              <a href={whatsappShareUrl(notice.text)} target="_blank" rel="noreferrer" onClick={() => void markSent(notice)} className="font-bold underline">
+                Mandar com texto pronto
+              </a>
+            </p>
+          ) : (
+            groupUrl && <p className="text-xs text-muted">{copied ? "Texto copiado. No grupo, segure o campo e toque em Colar." : "O texto vai copiado: no grupo, é só colar e enviar."}</p>
+          )}
         </>
       )}
     </div>
