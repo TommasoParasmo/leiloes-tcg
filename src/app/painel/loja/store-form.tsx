@@ -15,7 +15,7 @@ const maskCep = (v: string) => {
 };
 
 /** Pix (aparece para o comprador pagar), CEP de onde as cartas saem (SuperFrete) e grupo do WhatsApp. */
-export function StoreForm({ storeName, initial }: { storeName: string; initial: Values }) {
+export function StoreForm({ storeName, initial, children }: { storeName: string; initial: Values; children?: React.ReactNode }) {
   const router = useRouter();
   const [v, setV] = useState(initial);
   const [errors, setErrors] = useState<Partial<Record<keyof Values, string>>>({});
@@ -109,6 +109,7 @@ export function StoreForm({ storeName, initial }: { storeName: string; initial: 
           Salvar
         </Button>
       </form>
+      {children}
     </main>
   );
 }

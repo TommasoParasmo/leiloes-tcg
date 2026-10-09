@@ -34,7 +34,7 @@ export default function PrivacidadePage() {
       <ul>
         <li>Supabase, que guarda o banco de dados e as contas, e Vercel, que hospeda o site.</li>
         <li>ViaCEP, que recebe só o CEP digitado para preencher o endereço.</li>
-        <li>A transportadora ou serviço de frete, que recebe nome e endereço para a etiqueta.</li>
+        <li>O SuperFrete (serviço de frete dos Correios), que recebe nome, CPF e endereço para a etiqueta e a declaração de conteúdo.</li>
         <li>O grupo do WhatsApp, que recebe só o apelido de quem arrematou, a carta e o valor.</li>
       </ul>
       <p>Não vendemos seus dados e não os usamos para publicidade.</p>

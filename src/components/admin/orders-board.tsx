@@ -13,6 +13,7 @@ import { formatBRL, parseBRL } from "@/lib/money";
 import { formatDue, ORDER_STATUS, PROOFS_BUCKET, type Order, type OrderStatus } from "@/lib/orders";
 import { createClient } from "@/lib/supabase/client";
 import { formatWhatsapp } from "@/lib/validation";
+import { SuperfreteLabel } from "./superfrete-label";
 import { SuperfreteQuote } from "./superfrete-quote";
 
 type Tab = "frete" | "pix" | "comprovante" | "pagos" | "enviados" | "cancelados";
@@ -116,7 +117,7 @@ export function OrdersBoard({ orders, now }: { orders: Order[]; now: number }) {
                   <ActionButton onClick={() => setAction({ kind: "reject", order: o })}>Recusar</ActionButton>
                 </>
               )}
-              {o.status === "paid" && <ActionButton primary onClick={() => setAction({ kind: "ship", order: o })}>Marcar enviado</ActionButton>}
+              {o.status === "paid" && <ActionButton primary onClick={() => setAction({ kind: "ship", order: o })}>Etiqueta e envio</ActionButton>}
               {o.status === "shipped" && (
                 <>
                   <ActionButton primary onClick={() => setAction({ kind: "deliver", order: o })}>Marcar entregue</ActionButton>
@@ -272,6 +273,16 @@ function ActionSheet({ action, sb, onClose, onDone }: { action: Action; sb: Retu
             : "endereço não informado"}
           . {who} recebe o código no app.
         </p>
+        {o.status === "paid" && o.shipping_address && (
+          <SuperfreteLabel
+            orderId={o.id}
+            serviceName={o.shipment?.service_name ?? null}
+            onTracking={(code) => {
+              setTracking((t) => (t.trim() ? t : code));
+              setFieldError(null);
+            }}
+          />
+        )}
         <Field
           label="Código de rastreio"
           autoCapitalize="characters"

@@ -1,5 +1,19 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cardPackage, parseQuote, quoteRequestBody, quoteShipping, SuperfreteError } from "./superfrete";
+import {
+  cardPackage,
+  createLabel,
+  errorDetail,
+  labelInfo,
+  labelIsPaid,
+  labelRequestBody,
+  parseQuote,
+  printLabel,
+  quoteRequestBody,
+  quoteShipping,
+  serviceIdFromName,
+  SuperfreteError,
+  type LabelInput,
+} from "./superfrete";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -42,5 +56,83 @@ describe("superfrete", () => {
       return new Response(JSON.stringify([{ id: 1, name: "PAC", price: 20, delivery_time: 5 }]), { status: 200 });
     });
     expect(await quoteShipping("04538133", "01310100", 1, ok as unknown as typeof fetch)).toEqual([{ serviceId: "1", name: "PAC", priceCents: 2000, days: 5 }]);
+  });
+
+  it("dados recusados pelo SuperFrete trazem o motivo", async () => {
+    vi.stubEnv("SUPERFRETE_TOKEN", "tok");
+    const bad = vi.fn(async () => new Response(JSON.stringify({ message: "Dados inválidos", errors: { "to.postal_code": ["CEP inválido"] } }), { status: 422 }));
+    await expect(quoteShipping("04538133", "0", 1, bad as unknown as typeof fetch)).rejects.toMatchObject({ reason: "invalid", detail: "Dados inválidos CEP inválido" });
+    const down = vi.fn(async () => new Response("", { status: 502 }));
+    await expect(quoteShipping("04538133", "01310100", 1, down as unknown as typeof fetch)).rejects.toMatchObject({ reason: "unavailable" });
+    expect(errorDetail("x".repeat(10))).toBeUndefined();
+    expect(errorDetail({ error: "a".repeat(300) })).toHaveLength(200);
+  });
+});
+
+const input: LabelInput = {
+  from: { name: "Loja", address: "Rua Funchal", number: "418", complement: null, district: "Vila Olímpia", city: "São Paulo", state_abbr: "SP", postal_code: "04538133" },
+  to: { name: "Pessoa", address: "Av. Paulista", number: "1578", complement: " ", district: "Bela Vista", city: "São Paulo", state_abbr: "SP", postal_code: "01310100", document: "12345678909" },
+  items: [
+    { name: "Charizard", amount_cents: 15000 },
+    { name: "Pikachu", amount_cents: 250 },
+  ],
+};
+
+describe("etiqueta do SuperFrete", () => {
+  it("serviço da cotação vira o código do SuperFrete", () => {
+    expect(serviceIdFromName("PAC")).toBe(1);
+    expect(serviceIdFromName("SEDEX 10")).toBe(2);
+    expect(serviceIdFromName("Mini Envios")).toBe(17);
+    expect(serviceIdFromName("Frete")).toBeNull();
+    expect(serviceIdFromName(null)).toBeNull();
+  });
+
+  it("monta a etiqueta: endereços sem campos vazios, uma linha por carta, declaração de conteúdo", () => {
+    const body = labelRequestBody(input, 2);
+    expect(body.service).toBe(2);
+    expect(body.from).not.toHaveProperty("complement");
+    expect(body.to).not.toHaveProperty("complement");
+    expect(body.to).toMatchObject({ name: "Pessoa", document: "12345678909", postal_code: "01310100" });
+    expect(body.products).toEqual([
+      { name: "Charizard", quantity: "1", unitary_value: "150.00" },
+      { name: "Pikachu", quantity: "1", unitary_value: "2.50" },
+    ]);
+    expect(body.volumes).toEqual(cardPackage(2));
+    expect(body.options).toMatchObject({ non_commercial: true });
+  });
+
+  it("cria no carrinho, consulta a situação e pega o PDF, sempre com o token", async () => {
+    vi.stubEnv("SUPERFRETE_TOKEN", "tok");
+    vi.stubEnv("SUPERFRETE_URL", "https://sandbox.superfrete.com");
+    const calls: { url: string; method: string; body: unknown }[] = [];
+    const f = vi.fn(async (url: string, init: RequestInit) => {
+      expect((init.headers as Record<string, string>).authorization).toBe("Bearer tok");
+      calls.push({ url, method: String(init.method), body: init.body ? JSON.parse(String(init.body)) : null });
+      if (url.endsWith("/api/v0/cart")) return new Response(JSON.stringify({ id: "01JK6D99A7SVYXV03C3ZFS7CXA", status: "pending" }));
+      if (url.includes("/api/v0/order/info/")) return new Response(JSON.stringify({ id: "x", status: "released", tracking: " ec451638075br " }));
+      return new Response(JSON.stringify({ url: "https://sandbox.superfrete.com/_etiqueta/pdf/abc" }));
+    }) as unknown as typeof fetch;
+
+    expect(await createLabel(input, 1, f)).toEqual({ id: "01JK6D99A7SVYXV03C3ZFS7CXA", status: "pending" });
+    expect(await labelInfo("01JK6D99A7SVYXV03C3ZFS7CXA", f)).toEqual({ status: "released", tracking: "EC451638075BR" });
+    expect(await printLabel("01JK6D99A7SVYXV03C3ZFS7CXA", f)).toBe("https://sandbox.superfrete.com/_etiqueta/pdf/abc");
+    expect(calls.map((c) => `${c.method} ${c.url}`)).toEqual([
+      "POST https://sandbox.superfrete.com/api/v0/cart",
+      "GET https://sandbox.superfrete.com/api/v0/order/info/01JK6D99A7SVYXV03C3ZFS7CXA",
+      "POST https://sandbox.superfrete.com/api/v0/tag/print",
+    ]);
+    expect(calls[2].body).toEqual({ orders: ["01JK6D99A7SVYXV03C3ZFS7CXA"] });
+  });
+
+  it("resposta sem id não vira etiqueta; link que não é https é ignorado; só paga pode imprimir", async () => {
+    vi.stubEnv("SUPERFRETE_TOKEN", "tok");
+    const noId = vi.fn(async () => new Response(JSON.stringify({ message: "ok" }))) as unknown as typeof fetch;
+    await expect(createLabel(input, 1, noId)).rejects.toEqual(new SuperfreteError("unavailable"));
+    const http = vi.fn(async () => new Response(JSON.stringify({ url: "http://x/pdf" }))) as unknown as typeof fetch;
+    expect(await printLabel("a", http)).toBeNull();
+    expect(labelIsPaid("pending")).toBe(false);
+    expect(labelIsPaid("canceled")).toBe(false);
+    expect(labelIsPaid("released")).toBe(true);
+    expect(labelIsPaid("posted")).toBe(true);
   });
 });
