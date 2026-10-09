@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Suspense } from "react";
+import { Fragment, Suspense } from "react";
 import { PageLoading } from "@/components/ui/page-loading";
 import { AccumulationCard } from "@/components/accumulation-card";
 import { CloseLotButton } from "@/components/buyer/close-lot-button";
@@ -35,8 +35,11 @@ async function Arremates() {
     myLots(sb),
     fetchOrders(sb, { userId: data.user.id, statuses: ["awaiting_shipping_quote", "awaiting_payment", "proof_sent"] }),
   ]);
-  const open = lots.find((l) => l.status === "open");
-  const openCards = open ? open.wins.filter((w) => w.status !== "cancelled").length : 0;
+  // um lote aberto por leiloeiro: cada um vira um cartão com o seu "Pagar com Pix"
+  const open = lots
+    .filter((l) => l.status === "open")
+    .map((lot) => ({ lot, cards: lot.wins.filter((w) => w.status !== "cancelled").length }))
+    .filter((o) => o.cards > 0);
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 pb-28">
@@ -62,15 +65,15 @@ async function Arremates() {
         </Link>
       ))}
 
-      {open && openCards > 0 && (
-        <>
-          <AccumulationCard lot={open} />
-          {open.due_at && <p className="-mt-2 text-sm font-bold text-warn">Pague até {formatDue(open.due_at)}</p>}
-          <CloseLotButton lotId={open.id} totalCents={open.total_cents} cards={openCards} label="Pagar com Pix" />
-        </>
-      )}
+      {open.map(({ lot, cards }) => (
+        <Fragment key={lot.id}>
+          <AccumulationCard lot={lot} />
+          {lot.due_at && <p className="-mt-2 text-sm font-bold text-warn">Pague até {formatDue(lot.due_at)}</p>}
+          <CloseLotButton lotId={lot.id} totalCents={lot.total_cents} cards={cards} label="Pagar com Pix" />
+        </Fragment>
+      ))}
 
-      {!orders.length && !openCards && <p className="text-sm text-muted">Você ainda não ganhou nenhuma carta. Quando ganhar, ela aparece aqui.</p>}
+      {!orders.length && !open.length && <p className="text-sm text-muted">Você ainda não ganhou nenhuma carta. Quando ganhar, ela aparece aqui.</p>}
 
       <section className="flex gap-3 rounded-md border border-line bg-surface p-3 text-sm">
         <span aria-hidden className="mt-0.5 h-5 w-3.5 shrink-0 rounded-[3px] bg-warn" />
