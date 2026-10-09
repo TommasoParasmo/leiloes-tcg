@@ -57,7 +57,7 @@ export function DebtorsList({ debtors, waitingShipping }: { debtors: Debtor[]; w
               <p className={cn("text-xs", d.late ? "text-danger" : "text-muted")}>
                 {d.cards} {d.cards === 1 ? "carta" : "cartas"}
                 {d.dueAt ? (d.late ? ` · venceu ${formatDue(d.dueAt)}` : ` · vence ${formatDue(d.dueAt)}`) : ""}
-                {d.proofSent ? " · mandou comprovante" : ""}
+                {d.proofSent ? " · disse que pagou" : ""}
               </p>
             </div>
             <p className="text-right font-display text-xl font-extrabold tabular">{formatBRL(d.totalCents)}</p>
