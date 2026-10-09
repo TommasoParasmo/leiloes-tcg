@@ -7,9 +7,7 @@ import { Field, FormError } from "@/components/ui/field";
 import { Sheet } from "@/components/ui/sheet";
 import { adminRpc, type FreeCard, type QueueRound } from "@/lib/admin-data";
 import { auctionMessage } from "@/lib/auction/codes";
-import { formatAmountShort, parseBRL } from "@/lib/money";
-
-const MAX_CENTS = 10_000_000;
+import { formatAmountShort, MAX_PRICE_CENTS, parseBRL } from "@/lib/money";
 
 /**
  * Só rapidez por enquanto: pôr uma carta na fila é escolher a carta e confirmar o preço
@@ -146,7 +144,8 @@ function PriceForm({
   async function save() {
     if (pending) return;
     const cents = parseBRL(value);
-    if (!cents || cents <= 0 || cents > MAX_CENTS) return setFieldError("Informe o preço, ex.: 25 ou 12,50");
+    if (!cents || cents <= 0) return setFieldError("Informe o preço, ex.: 25 ou 12,50");
+    if (cents > MAX_PRICE_CENTS) return setFieldError("O preço máximo é R$ 100.000");
     setPending(true);
     setError(null);
     let failure: string | null;

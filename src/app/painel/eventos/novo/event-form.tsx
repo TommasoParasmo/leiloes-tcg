@@ -8,7 +8,7 @@ import { Sheet } from "@/components/ui/sheet";
 import type { FreeCard } from "@/lib/admin-data";
 import { auctionMessage, type AuctionResult } from "@/lib/auction/codes";
 import { cn } from "@/lib/cn";
-import { formatBRL, parseBRL } from "@/lib/money";
+import { formatBRL, MAX_PRICE_CENTS, parseBRL } from "@/lib/money";
 import { dayChips, defaultSlot, eventTitle, isPast, startsAtIso } from "@/lib/quick-event";
 import { createClient } from "@/lib/supabase/client";
 
@@ -204,6 +204,7 @@ function PriceSheet({ card, onClose, onSaved }: { card: FreeCard; onClose: () =>
   async function save() {
     const cents = parseBRL(value);
     if (!cents || cents <= 0) return setFieldError("Informe o preço, ex.: 25");
+    if (cents > MAX_PRICE_CENTS) return setFieldError("O preço máximo é R$ 100.000");
     setPending(true);
     setError(null);
     try {

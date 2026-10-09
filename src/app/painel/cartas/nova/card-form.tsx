@@ -9,7 +9,7 @@ import { CARD_PHOTOS_BUCKET } from "@/lib/auction/data";
 import { canOpenPhoto, shrinkPhoto, withTimeout } from "@/lib/image";
 import { PokemonLookup } from "./pokemon-lookup";
 import { cardSummary } from "@/lib/card-summary";
-import { parseBRL } from "@/lib/money";
+import { MAX_PRICE_CENTS, parseBRL } from "@/lib/money";
 import { createClient } from "@/lib/supabase/client";
 
 const MAX_PHOTOS = 4;
@@ -140,7 +140,7 @@ export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: st
       photos: photos.length ? undefined : "Adicione pelo menos uma foto",
       liga: values.liga.trim() && liga == null ? "Use o formato 12,50" : undefined,
       // só rapidez por enquanto: quem tocar primeiro leva por este preço
-      price: price && price > 0 ? undefined : values.price.trim() ? "Use o formato 25 ou 12,50" : "Informe o preço da carta",
+      price: price && price > MAX_PRICE_CENTS ? "O preço máximo é R$ 100.000" : price && price > 0 ? undefined : values.price.trim() ? "Use o formato 25 ou 12,50" : "Informe o preço da carta",
     };
     setErrors(errs);
     if (errs.liga) setMore(true);

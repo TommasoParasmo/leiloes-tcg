@@ -9,6 +9,9 @@ export function formatBRL(cents: number | bigint | string): string {
 }
 
 /** 1000 → "10", 50 → "0,50": valor sem "R$" e sem ",00" para botões compactos. */
+/** Maior preço aceito pelo banco (R$ 100.000). */
+export const MAX_PRICE_CENTS = 10_000_000;
+
 export function formatAmountShort(cents: number): string {
   return formatBRL(cents).replace(/^R\$ /, "").replace(/,00$/, "");
 }
