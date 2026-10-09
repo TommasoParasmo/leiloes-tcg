@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildRoundResultMessage, normalizeGroupUrl, whatsappShareUrl } from "./message";
+import { buildRoundResultMessage, groupNotice, normalizeGroupUrl, whatsappShareUrl } from "./message";
 
 describe("mensagem de resultado", () => {
   it("segue o modelo combinado", () => {
@@ -49,5 +49,12 @@ describe("normalizeGroupUrl", () => {
     expect(normalizeGroupUrl("http://chat.whatsapp.com/ButtDqukFHUIeCisAggIl0")).toBeNull();
     expect(normalizeGroupUrl("https://chat.whatsapp.com.evil.dev/ButtDqukFHUIeCisAggIl0")).toBeNull();
     expect(normalizeGroupUrl("")).toBeNull();
+  });
+});
+
+describe("groupNotice", () => {
+  it("com grupo: abre o grupo e copia o texto; sem grupo: texto pronto no wa.me", () => {
+    expect(groupNotice("oi", "https://chat.whatsapp.com/AbCdEfGhIj12")).toEqual({ href: "https://chat.whatsapp.com/AbCdEfGhIj12", copy: true });
+    expect(groupNotice("oi tudo", null)).toEqual({ href: "https://wa.me/?text=oi%20tudo", copy: false });
   });
 });

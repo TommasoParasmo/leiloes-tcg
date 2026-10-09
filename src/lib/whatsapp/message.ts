@@ -47,3 +47,11 @@ export function normalizeGroupUrl(value: string): string | null {
   const url = value.trim().replace(/[?#].*$/, "");
   return /^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9]{10,40}$/.test(url) ? url : null;
 }
+
+/**
+ * "Avisar no grupo": com o grupo cadastrado, copia o texto e abre o grupo (link de grupo
+ * não aceita texto pronto); sem ele, abre o WhatsApp com o texto para escolher a conversa.
+ */
+export function groupNotice(text: string, groupUrl: string | null): { href: string; copy: boolean } {
+  return groupUrl ? { href: groupUrl, copy: true } : { href: whatsappShareUrl(text), copy: false };
+}

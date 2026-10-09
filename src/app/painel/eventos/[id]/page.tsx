@@ -34,7 +34,10 @@ async function Evento({ params, searchParams }: Pick<PageProps<"/painel/eventos/
   const newCardId = typeof carta === "string" && UUID.test(carta) ? carta : undefined;
   if (!UUID.test(id)) notFound();
   const { sb, sellerId } = await requireAdmin(`/painel/eventos/${id}`);
-  const { data } = await sb.from("events").select("id, number, title, status, share_slug, seller_id, cover_path").eq("id", id).maybeSingle();
+  const [{ data }, { data: priv }] = await Promise.all([
+    sb.from("events").select("id, number, title, status, share_slug, seller_id, cover_path").eq("id", id).maybeSingle(),
+    sb.from("seller_private").select("whatsapp_group_url").eq("seller_id", sellerId).maybeSingle<{ whatsapp_group_url: string | null }>(),
+  ]);
   if (!data || data.seller_id !== sellerId) notFound();
   const event: AdminEvent = {
     id: data.id,
@@ -64,7 +67,7 @@ async function Evento({ params, searchParams }: Pick<PageProps<"/painel/eventos/
         }
       />
       <p className="mx-auto -mt-1 w-full max-w-md truncate px-4 text-sm text-muted">{event.title}</p>
-      <EventControl event={event} sellerId={sellerId} newCardId={newCardId} />
+      <EventControl event={event} sellerId={sellerId} newCardId={newCardId} groupUrl={priv?.whatsapp_group_url ?? null} />
     </>
   );
 }
