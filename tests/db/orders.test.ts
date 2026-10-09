@@ -279,9 +279,9 @@ describe("avisos", () => {
 describe("minha loja e dados do frete", () => {
   it("leiloeiro salva Pix e CEP de origem; o CEP não fica público", async () => {
     const [buyer] = await db.users(1);
-    expect((await db.rpc(buyer, "admin_update_store", ["x", "y", "z", "01310100"])).code).toBe("forbidden");
-    expect((await db.rpc(admin, "admin_update_store", ["k", "n", "c", "0131"])).code).toBe("invalid_request");
-    expect((await db.rpc(admin, "admin_update_store", [" pix@loja.com ", "Loja Teste", "Sao Paulo", "01310-100"])).code).toBe("saved");
+    expect((await db.rpc(buyer, "admin_update_store", ["x", "y", "z", "01310100", ""])).code).toBe("forbidden");
+    expect((await db.rpc(admin, "admin_update_store", ["k", "n", "c", "0131", ""])).code).toBe("invalid_request");
+    expect((await db.rpc(admin, "admin_update_store", [" pix@loja.com ", "Loja Teste", "Sao Paulo", "01310-100", ""])).code).toBe("saved");
     const [s] = await db.sql<{ pix_key: string; origin_cep: string }>(
       `select s.pix_key, p.origin_cep from sellers s join seller_private p on p.seller_id = s.id where s.id = $1`,
       [seller],
@@ -292,8 +292,23 @@ describe("minha loja e dados do frete", () => {
     await expect(db.as(null, (c) => c.query(`select * from seller_private`))).rejects.toThrow(/permission denied/);
   });
 
+  it("link do grupo do WhatsApp: guarda sem o ?mode=, recusa outro site e só o leiloeiro vê", async () => {
+    const [buyer] = await db.users(1);
+    const save = (url: string) => db.rpc(admin, "admin_update_store", ["", "", "", "", url]);
+    expect((await save("https://evil.example/ButtDqukFHUIeCisAggIl0")).code).toBe("invalid_request");
+    expect((await save("https://chat.whatsapp.com/abc")).code).toBe("invalid_request");
+    expect((await save(" https://chat.whatsapp.com/ButtDqukFHUIeCisAggIl0?mode=gi_t ")).code).toBe("saved");
+    const [p] = await db.sql<{ whatsapp_group_url: string }>(`select whatsapp_group_url from seller_private where seller_id = $1`, [seller]);
+    expect(p.whatsapp_group_url).toBe("https://chat.whatsapp.com/ButtDqukFHUIeCisAggIl0");
+    expect(await db.as(buyer, async (c) => (await c.query(`select whatsapp_group_url from seller_private`)).rows)).toEqual([]);
+    // apagar o campo tira o link
+    expect((await save("")).code).toBe("saved");
+    const [q] = await db.sql<{ whatsapp_group_url: string | null }>(`select whatsapp_group_url from seller_private where seller_id = $1`, [seller]);
+    expect(q.whatsapp_group_url).toBeNull();
+  });
+
   it("dados para cotar: CEP de origem, CEP do comprador e número de cartas, só para o leiloeiro", async () => {
-    await db.rpc(admin, "admin_update_store", ["pix@loja.com", "Loja Teste", "Sao Paulo", "04538133"]);
+    await db.rpc(admin, "admin_update_store", ["pix@loja.com", "Loja Teste", "Sao Paulo", "04538133", ""]);
     const buyer = await buyerWithAddress();
     await auction(buyer, 1500);
     const { order_id: orderId } = (await db.rpc(buyer, "close_my_lot", [(await lotOf(buyer)).id])) as { order_id: string };

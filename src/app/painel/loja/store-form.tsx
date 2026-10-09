@@ -5,15 +5,16 @@ import { Button } from "@/components/ui/button";
 import { Field, FormError } from "@/components/ui/field";
 import { auctionMessage, type AuctionResult } from "@/lib/auction/codes";
 import { createClient } from "@/lib/supabase/client";
+import { normalizeGroupUrl } from "@/lib/whatsapp/message";
 
-type Values = { pixKey: string; pixName: string; pixCity: string; originCep: string };
+type Values = { pixKey: string; pixName: string; pixCity: string; originCep: string; groupUrl: string };
 
 const maskCep = (v: string) => {
   const d = v.replace(/\D/g, "").slice(0, 8);
   return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
 };
 
-/** Pix (aparece para o comprador pagar) e CEP de onde as cartas saem (para o SuperFrete). */
+/** Pix (aparece para o comprador pagar), CEP de onde as cartas saem (SuperFrete) e grupo do WhatsApp. */
 export function StoreForm({ storeName, initial }: { storeName: string; initial: Values }) {
   const router = useRouter();
   const [v, setV] = useState(initial);
@@ -35,6 +36,8 @@ export function StoreForm({ storeName, initial }: { storeName: string; initial: 
     if (cep && cep.length !== 8) errs.originCep = "CEP com 8 números, ex.: 01310-100";
     if (v.pixKey.trim() && !v.pixName.trim()) errs.pixName = "Informe o nome de quem recebe";
     if (v.pixKey.trim() && !v.pixCity.trim()) errs.pixCity = "Informe a cidade";
+    const group = v.groupUrl.trim() ? normalizeGroupUrl(v.groupUrl) : "";
+    if (group === null) errs.groupUrl = "Cole o link de convite do grupo, ex.: https://chat.whatsapp.com/…";
     setErrors(errs);
     if (Object.values(errs).some(Boolean)) return;
     setPending(true);
@@ -45,6 +48,7 @@ export function StoreForm({ storeName, initial }: { storeName: string; initial: 
         p_pix_name: v.pixName,
         p_pix_city: v.pixCity,
         p_origin_cep: cep,
+        p_group_url: group,
       });
       const r = data as AuctionResult | null;
       if (error || !r?.ok) setFormError(r ? auctionMessage(r) : "Não foi possível salvar. Tente de novo.");
@@ -78,6 +82,21 @@ export function StoreForm({ storeName, initial }: { storeName: string; initial: 
             onChange={(e) => set("originCep", maskCep(e.target.value))}
             error={errors.originCep}
             hint="Usado para calcular o frete no SuperFrete. Não aparece para os compradores."
+          />
+        </fieldset>
+        <fieldset className="flex flex-col gap-3">
+          <legend className="mb-2 text-[11px] font-extrabold uppercase tracking-[.06em] text-muted">Grupo do WhatsApp</legend>
+          <Field
+            label="Link do grupo"
+            type="url"
+            inputMode="url"
+            placeholder="https://chat.whatsapp.com/…"
+            value={v.groupUrl}
+            onChange={(e) => set("groupUrl", e.target.value)}
+            error={errors.groupUrl}
+            autoComplete="off"
+            spellCheck={false}
+            hint="No grupo: Dados do grupo › Convidar via link › Copiar link. Os resultados abrem direto nele."
           />
         </fieldset>
         <FormError message={formError} />
