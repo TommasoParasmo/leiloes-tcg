@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bidBoxTone, bidChoices, breakRemainingMs, clockOffsetMs, formatCountdown, mergePublicState, nextClockSync, nextEventStatus, remainingMs, timerProgress } from "./logic";
+import { bidBoxTone, bidChoices, breakRemainingMs, clockOffsetMs, formatCountdown, mergePublicState, nextClockSync, nextEventStatus, optionsLabel, remainingMs, speedOptions, timerProgress } from "./logic";
 import type { RoundState } from "./types";
 
 const base: RoundState = {
@@ -172,5 +172,17 @@ describe("breakRemainingMs", () => {
     expect(breakRemainingMs("2026-10-09T20:05:00Z", now, 2000)).toBe(298_000);
     expect(breakRemainingMs("2026-10-09T19:59:00Z", now, 0)).toBe(0);
     expect(breakRemainingMs(null, now, 0)).toBeNull();
+  });
+});
+
+describe("speedOptions", () => {
+  it("monta os 4 botões a partir do mínimo da Liga", () => {
+    expect(speedOptions(1000, 100)).toEqual([1000, 1100, 1200, 1300]);
+    expect(speedOptions(1000, 200)).toEqual([1000, 1200, 1400, 1600]);
+    expect(speedOptions(1250, 100)).toEqual([1250, 1350, 1450, 1550]);
+  });
+  it("vira uma linha legível", () => {
+    expect(optionsLabel([1000, 1200, 1400, 1600])).toBe("R$ 10 · 12 · 14 · 16");
+    expect(optionsLabel([1250, 1350, 1450, 1550])).toBe("R$ 12,50 · 13,50 · 14,50 · 15,50");
   });
 });

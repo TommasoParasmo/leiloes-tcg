@@ -1,4 +1,5 @@
 import type { RoundState } from "./types";
+import { formatAmountShort } from "@/lib/money";
 
 /**
  * Regras de exibição da sala. Nenhuma decide resultado: o servidor valida tudo.
@@ -162,4 +163,20 @@ const EVENT_STATUS_RANK: Record<string, number> = { draft: 0, scheduled: 1, live
 export function nextEventStatus<T extends string>(prev: T | null, next: T): T {
   if (prev == null) return next;
   return (EVENT_STATUS_RANK[next] ?? 0) >= (EVENT_STATUS_RANK[prev] ?? 0) ? next : prev;
+}
+
+/** Degraus da rapidez com opções: +R$ 1 ou +R$ 2 entre os 4 botões. */
+export const SPEED_STEPS_CENTS = [100, 200] as const;
+
+/**
+ * Os 4 botões da rapidez, a partir do mínimo da Liga: 10 com +1 vira 10, 11, 12, 13.
+ * O maior arremata na hora (o mesmo cálculo de admin_create_quick_event no banco).
+ */
+export function speedOptions(firstCents: number, stepCents: number): number[] {
+  return [0, 1, 2, 3].map((i) => firstCents + i * stepCents);
+}
+
+/** "R$ 10 · 11 · 12 · 13": os botões da rapidez numa linha. */
+export function optionsLabel(options: number[]): string {
+  return `R$ ${options.map(formatAmountShort).join(" · ")}`;
 }

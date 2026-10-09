@@ -1,12 +1,15 @@
--- Só rapidez por enquanto (decisão do Tom, 09/10): cada carta tem preço fixo no cadastro,
--- o leiloeiro mostra a carta e libera o botão; o primeiro toque confirmado leva.
--- O modelo de maior lance continua no banco, só deixa de ser criado pelo "Criar leilão".
+-- Só rapidez por enquanto (decisão do Tom, 09/10). Cada carta tem no cadastro o mínimo da
+-- Liga; o "Criar leilão" monta sozinho os 4 botões a partir dele, com degrau de +R$ 1 ou
+-- +R$ 2 (10, 11, 12, 13 ou 10, 12, 14, 16). Quem tocar primeiro no maior arremata na hora;
+-- se ninguém chegar nele, leva o maior lance quando o leiloeiro fechar (sem cronômetro).
+-- É a "rapidez com opções" da migration 21: highest_bid com bid_options_cents e
+-- fixed_price_cents = o maior valor.
 
 alter table public.cards
   add column if not exists price_cents bigint check (price_cents is null or price_cents between 1 and 10000000);
 
--- Cria o leilão com as cartas em rapidez, cada uma pelo preço dela. Tudo ou nada.
-create or replace function public.admin_create_quick_event(p_title text, p_starts_at timestamptz, p_card_ids uuid[])
+-- Cria o leilão com as cartas em rapidez, cada uma a partir do mínimo da Liga dela. Tudo ou nada.
+create or replace function public.admin_create_quick_event(p_title text, p_starts_at timestamptz, p_card_ids uuid[], p_step_cents bigint)
 returns jsonb
 language plpgsql security definer set search_path = public
 as $$
@@ -22,7 +25,8 @@ begin
   if coalesce(length(trim(p_title)), 0) not between 1 and 120 or p_starts_at is null
      or coalesce(cardinality(p_card_ids), 0) not between 1 and 300
      or (select count(distinct x) from unnest(p_card_ids) x) <> cardinality(p_card_ids)
-     or array_position(p_card_ids, null) is not null then
+     or array_position(p_card_ids, null) is not null
+     or p_step_cents is null or p_step_cents not in (100, 200) then
     return jsonb_build_object('ok', false, 'code', 'invalid_request');
   end if;
 
@@ -49,15 +53,20 @@ begin
 
   foreach v_card in array p_card_ids loop
     v_pos := v_pos + 1;
-    insert into public.rounds (seller_id, event_id, card_id, position, mode, fixed_price_cents, close_mode)
-    select v_seller, v_id, v_card, v_pos, 'speed', c.price_cents, 'manual' from public.cards c where c.id = v_card;
+    insert into public.rounds (seller_id, event_id, card_id, position, mode, bid_options_cents, fixed_price_cents, close_mode)
+    select v_seller, v_id, v_card, v_pos, 'highest_bid',
+           array[c.price_cents, c.price_cents + p_step_cents, c.price_cents + 2 * p_step_cents, c.price_cents + 3 * p_step_cents],
+           c.price_cents + 3 * p_step_cents, 'manual'
+      from public.cards c where c.id = v_card;
   end loop;
 
-  perform public.app_audit(v_seller, 'event.create', 'event', v_id, jsonb_build_object('quick', true, 'cards', v_pos, 'mode', 'speed'));
+  perform public.app_audit(v_seller, 'event.create', 'event', v_id, jsonb_build_object('quick', true, 'cards', v_pos, 'mode', 'speed_options', 'step', p_step_cents));
   perform public.app_audit(v_seller, 'event.publish', 'event', v_id);
   return jsonb_build_object('ok', true, 'code', 'published', 'id', v_id, 'number', v_number);
 end;
 $$;
 
-revoke execute on function public.admin_create_quick_event(text, timestamptz, uuid[]) from public, anon;
-grant execute on function public.admin_create_quick_event(text, timestamptz, uuid[]) to authenticated;
+-- a versão de 3 argumentos (migration 28, maior lance) sai de uso
+revoke execute on function public.admin_create_quick_event(text, timestamptz, uuid[]) from public, anon, authenticated;
+revoke execute on function public.admin_create_quick_event(text, timestamptz, uuid[], bigint) from public, anon;
+grant execute on function public.admin_create_quick_event(text, timestamptz, uuid[], bigint) to authenticated;

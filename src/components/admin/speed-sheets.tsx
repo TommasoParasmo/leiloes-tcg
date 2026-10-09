@@ -7,11 +7,13 @@ import { Field, FormError } from "@/components/ui/field";
 import { Sheet } from "@/components/ui/sheet";
 import { adminRpc, type FreeCard, type QueueRound } from "@/lib/admin-data";
 import { auctionMessage } from "@/lib/auction/codes";
+import { optionsLabel, SPEED_STEPS_CENTS, speedOptions } from "@/lib/auction/logic";
+import { cn } from "@/lib/cn";
 import { formatAmountShort, MAX_PRICE_CENTS, parseBRL } from "@/lib/money";
 
 /**
- * Só rapidez por enquanto: pôr uma carta na fila é escolher a carta e confirmar o preço
- * (vem do cadastro). Quem tocar primeiro em “Quero esta carta” leva por esse valor.
+ * Só rapidez por enquanto: pôr uma carta na fila é escolher a carta e confirmar o mínimo da
+ * Liga (vem do cadastro) e o degrau. Viram 4 botões; o maior arremata na hora.
  */
 export function AddCardSheet({
   sb,
@@ -56,7 +58,7 @@ export function AddCardSheet({
                   )}
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-bold">{c.name}</span>
-                    <span className="block truncate text-xs text-muted">{c.price_cents != null ? `R$ ${formatAmountShort(c.price_cents)}` : "Sem preço"}</span>
+                    <span className="block truncate text-xs text-muted">{c.price_cents != null ? `Liga R$ ${formatAmountShort(c.price_cents)}` : "Sem mínimo da Liga"}</span>
                   </span>
                   <span aria-hidden className="text-muted">
                     ›
@@ -74,20 +76,21 @@ export function AddCardSheet({
 
   return (
     <PriceForm
-      title={`Quanto custa ${card.name}?`}
+      title={card.name}
       initialCents={card.price_cents}
+      initialStep={SPEED_STEPS_CENTS[0]}
       submitLabel="Pôr na fila"
       onClose={onClose}
-      onSubmit={async (cents) => {
+      onSubmit={async (options) => {
         // pelo servidor: trava evento e carta, confere se a carta segue livre e o evento aberto
         const result = await adminRpc(sb, "admin_add_round", {
           p_event_id: eventId,
           p_card_id: card.id,
-          p_mode: "speed",
+          p_mode: "highest_bid",
           p_start_price_cents: null,
           p_increments_cents: null,
-          p_bid_options_cents: null,
-          p_fixed_price_cents: cents,
+          p_bid_options_cents: options,
+          p_fixed_price_cents: Math.max(...options),
           p_close_mode: "manual",
           p_duration_seconds: null,
         });
@@ -99,44 +102,60 @@ export function AddCardSheet({
   );
 }
 
-/** “Mudar preço” de uma carta que ainda está na fila. Vira rapidez, se era de lances. */
+/** “Mudar preço” de uma carta que ainda está na fila: novo início e degrau dos 4 botões. */
 export function RoundPriceSheet({ sb, round, onSaved, onClose }: { sb: SupabaseClient; round: QueueRound; onSaved: (message: string) => void; onClose: () => void }) {
+  const opts = round.bid_options_cents;
+  const step = opts && opts.length > 1 ? opts[1] - opts[0] : SPEED_STEPS_CENTS[0];
   return (
     <PriceForm
-      title={`Preço de ${round.card.name}`}
-      initialCents={round.fixed_price_cents}
-      submitLabel="Salvar preço"
+      title={round.card.name}
+      initialCents={opts?.[0] ?? round.fixed_price_cents ?? round.start_price_cents}
+      initialStep={(SPEED_STEPS_CENTS as readonly number[]).includes(step) ? step : SPEED_STEPS_CENTS[0]}
+      submitLabel="Salvar"
       onClose={onClose}
-      onSubmit={async (cents) => {
+      onSubmit={async (options) => {
         const { data, error } = await sb
           .from("rounds")
-          .update({ mode: "speed", fixed_price_cents: cents, close_mode: "manual", duration_seconds: null, start_price_cents: null, increments_cents: null, bid_options_cents: null })
+          .update({
+            mode: "highest_bid",
+            bid_options_cents: options,
+            fixed_price_cents: Math.max(...options),
+            close_mode: "manual",
+            duration_seconds: null,
+            start_price_cents: null,
+            increments_cents: null,
+          })
           .eq("id", round.id)
           .eq("status", "queued")
           .select("id");
         if (error || !data?.length) return "Não foi possível salvar. A carta pode já ter sido liberada.";
-        onSaved(`${round.card.name} agora sai por R$ ${formatAmountShort(cents)}.`);
+        onSaved(`${round.card.name}: ${optionsLabel(options)}.`);
         return null;
       }}
     />
   );
 }
 
+
 function PriceForm({
   title,
   initialCents,
+  initialStep,
   submitLabel,
   onSubmit,
   onClose,
 }: {
   title: string;
   initialCents: number | null;
+  initialStep: number;
   submitLabel: string;
-  /** Devolve a mensagem de erro, ou null quando deu certo. */
-  onSubmit: (cents: number) => Promise<string | null>;
+  /** Recebe os 4 botões; devolve a mensagem de erro, ou null quando deu certo. */
+  onSubmit: (options: number[]) => Promise<string | null>;
   onClose: () => void;
 }) {
   const [value, setValue] = useState(initialCents != null ? formatAmountShort(initialCents) : "");
+  const [step, setStep] = useState(initialStep);
+  const typed = parseBRL(value);
   const [fieldError, setFieldError] = useState<string | undefined>();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -144,13 +163,13 @@ function PriceForm({
   async function save() {
     if (pending) return;
     const cents = parseBRL(value);
-    if (!cents || cents <= 0) return setFieldError("Informe o preço, ex.: 25 ou 12,50");
+    if (!cents || cents <= 0) return setFieldError("Informe o valor, ex.: 10 ou 12,50");
     if (cents > MAX_PRICE_CENTS) return setFieldError("O preço máximo é R$ 100.000");
     setPending(true);
     setError(null);
     let failure: string | null;
     try {
-      failure = await onSubmit(cents);
+      failure = await onSubmit(speedOptions(cents, step));
     } catch {
       failure = "Sem conexão com o servidor. Tente de novo.";
     }
@@ -161,9 +180,9 @@ function PriceForm({
   return (
     <Sheet title={title} onClose={onClose}>
       <Field
-        label="Preço (R$)"
+        label="Mínimo da Liga (R$)"
         inputMode="decimal"
-        placeholder="Ex.: 25"
+        placeholder="Ex.: 10"
         autoFocus
         value={value}
         onChange={(e) => (setValue(e.target.value), setFieldError(undefined))}
@@ -174,8 +193,23 @@ function PriceForm({
           }
         }}
         error={fieldError}
-        hint="Quem tocar primeiro em “Quero esta carta” leva por este valor."
       />
+      <div className="grid grid-cols-2 gap-1.5" role="group" aria-label="Degrau dos botões">
+        {SPEED_STEPS_CENTS.map((s) => (
+          <button
+            key={s}
+            type="button"
+            aria-pressed={step === s}
+            onClick={() => setStep(s)}
+            className={cn("min-h-11 rounded-pill border px-3 text-sm font-bold", step === s ? "border-accent bg-accent/15 text-text" : "border-line text-muted")}
+          >
+            +R$ {s / 100}
+          </button>
+        ))}
+      </div>
+      <p className="text-sm text-muted">
+        {typed && typed > 0 ? `Botões: ${optionsLabel(speedOptions(typed, step))}. O maior leva na hora.` : "Os 4 botões começam neste valor. O maior leva na hora."}
+      </p>
       <FormError message={error} />
       <Button block className="min-h-[52px]" pending={pending} onClick={() => void save()}>
         {submitLabel}

@@ -7,6 +7,7 @@ import { Field, FormError } from "@/components/ui/field";
 import { Sheet } from "@/components/ui/sheet";
 import type { FreeCard } from "@/lib/admin-data";
 import { auctionMessage, type AuctionResult } from "@/lib/auction/codes";
+import { SPEED_STEPS_CENTS, speedOptions } from "@/lib/auction/logic";
 import { cn } from "@/lib/cn";
 import { formatBRL, MAX_PRICE_CENTS, parseBRL } from "@/lib/money";
 import { dayChips, defaultSlot, eventTitle, isPast, startsAtIso } from "@/lib/quick-event";
@@ -16,8 +17,8 @@ const TIMES = ["19:00", "20:00", "21:00"];
 
 /**
  * Criar leilão em um passo: dia, horário e tocar nas cartas. Só rapidez por enquanto:
- * cada carta entra pelo preço do cadastro e o leilão já sai publicado. Carta antiga sem
- * preço pede o preço ao ser tocada.
+ * cada carta ganha 4 botões a partir do mínimo da Liga (+R$ 1 ou +R$ 2) e o leilão já sai
+ * publicado. Carta antiga sem mínimo da Liga pede o valor ao ser tocada.
  */
 export function EventForm({ cards: initialCards, now }: { cards: FreeCard[]; now: number }) {
   const router = useRouter();
@@ -31,6 +32,7 @@ export function EventForm({ cards: initialCards, now }: { cards: FreeCard[]; now
   const [picked, setPicked] = useState<string[]>(() => initialCards.filter((c) => c.price_cents != null).map((c) => c.id));
   // carta sem preço tocada: abre o "Quanto custa?"
   const [pricing, setPricing] = useState<FreeCard | null>(null);
+  const [step, setStep] = useState<number>(SPEED_STEPS_CENTS[0]);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -52,7 +54,7 @@ export function EventForm({ cards: initialCards, now }: { cards: FreeCard[]; now
     // ordem do leilão = ordem da grade (as mais novas primeiro)
     const ids = cards.map((c) => c.id).filter((id) => picked.includes(id));
     try {
-      const { data, error: rpcError } = await createClient().rpc("admin_create_quick_event", { p_title: eventTitle(date), p_starts_at: iso, p_card_ids: ids });
+      const { data, error: rpcError } = await createClient().rpc("admin_create_quick_event", { p_title: eventTitle(date), p_starts_at: iso, p_card_ids: ids, p_step_cents: step });
       const r = data as (AuctionResult & { id?: string; card_id?: string }) | null;
       if (rpcError || !r?.ok || !r.id) {
         setPending(false);
@@ -60,7 +62,7 @@ export function EventForm({ cards: initialCards, now }: { cards: FreeCard[]; now
           const card = cards.find((c) => c.id === r.card_id);
           setPicked((s) => s.filter((x) => x !== r.card_id));
           if (card) setPricing({ ...card, price_cents: null });
-          return setError(`${card?.name ?? "Uma carta"} está sem preço.`);
+          return setError(`${card?.name ?? "Uma carta"} está sem o mínimo da Liga.`);
         }
         if (r?.code === "card_unavailable" && r.card_id) {
           // a carta entrou em outro leilão enquanto esta tela estava aberta: tira da seleção
@@ -143,7 +145,7 @@ export function EventForm({ cards: initialCards, now }: { cards: FreeCard[]; now
                     <span className="grid size-full place-items-center p-1 text-center text-[10px] font-bold leading-tight">{c.name}</span>
                   )}
                   <span className="absolute inset-x-0 bottom-0 bg-black/65 px-1 py-0.5 text-center text-[11px] font-bold text-white tabular">
-                    {c.price_cents != null ? formatBRL(c.price_cents).replace(",00", "") : "Pôr preço"}
+                    {c.price_cents != null ? formatBRL(c.price_cents).replace(",00", "") : "Pôr Liga"}
                   </span>
                   {on && (
                     <span aria-hidden className="absolute right-1 top-1 grid size-[18px] place-items-center rounded-full bg-accent text-[11px] font-black text-white">
@@ -157,13 +159,23 @@ export function EventForm({ cards: initialCards, now }: { cards: FreeCard[]; now
         </ul>
       </fieldset>
 
-      <p className="-mt-2 text-xs text-muted">Quem tocar primeiro em “Quero esta carta” leva pelo preço de cada uma.</p>
+      <fieldset className="flex flex-col gap-2">
+        <legend className="mb-2 text-sm font-bold text-muted">Botões de cada carta</legend>
+        <div className="grid grid-cols-2 gap-1.5">
+          {SPEED_STEPS_CENTS.map((s) => (
+            <Chip key={s} on={step === s} onClick={() => setStep(s)}>
+              +R$ {s / 100} ({speedOptions(1000, s).map((c) => c / 100).join(", ")})
+            </Chip>
+          ))}
+        </div>
+        <p className="text-xs text-muted">Começa no mínimo da Liga de cada carta. Quem tocar primeiro no maior valor leva na hora.</p>
+      </fieldset>
 
       <FormError message={error} />
       <Button block className="min-h-[72px] font-display text-xl" pending={pending} disabled={!picked.length} onClick={() => void create()}>
         {picked.length ? `Criar leilão com ${picked.length} ${picked.length === 1 ? "carta" : "cartas"}` : "Toque nas cartas"}
       </Button>
-      <p className="-mt-2 text-center text-xs text-muted">O leilão já aparece para todos. Dá para mudar a ordem e o preço de cada carta depois.</p>
+      <p className="-mt-2 text-center text-xs text-muted">O leilão já aparece para todos. Dá para mudar a ordem e os valores de cada carta depois.</p>
 
       {pricing && (
         <PriceSheet
@@ -194,7 +206,7 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
   );
 }
 
-/** Preço de uma carta antiga, cadastrada antes do preço ser obrigatório. Fica salvo na carta. */
+/** Mínimo da Liga de uma carta antiga, cadastrada antes dele ser obrigatório. Fica salvo na carta. */
 function PriceSheet({ card, onClose, onSaved }: { card: FreeCard; onClose: () => void; onSaved: (cents: number) => void }) {
   const [value, setValue] = useState("");
   const [fieldError, setFieldError] = useState<string | undefined>();
@@ -203,12 +215,12 @@ function PriceSheet({ card, onClose, onSaved }: { card: FreeCard; onClose: () =>
 
   async function save() {
     const cents = parseBRL(value);
-    if (!cents || cents <= 0) return setFieldError("Informe o preço, ex.: 25");
+    if (!cents || cents <= 0) return setFieldError("Informe o valor, ex.: 10");
     if (cents > MAX_PRICE_CENTS) return setFieldError("O preço máximo é R$ 100.000");
     setPending(true);
     setError(null);
     try {
-      const { error: dbError } = await createClient().from("cards").update({ price_cents: cents }).eq("id", card.id);
+      const { error: dbError } = await createClient().from("cards").update({ price_cents: cents, liga_price_cents: cents }).eq("id", card.id);
       if (dbError) setError("Não foi possível salvar. Tente de novo.");
       else return onSaved(cents);
     } catch {
@@ -218,11 +230,11 @@ function PriceSheet({ card, onClose, onSaved }: { card: FreeCard; onClose: () =>
   }
 
   return (
-    <Sheet title={`Quanto custa ${card.name}?`} onClose={onClose}>
-      <Field label="Preço (R$)" inputMode="decimal" placeholder="Ex.: 25" value={value} onChange={(e) => (setValue(e.target.value), setFieldError(undefined))} error={fieldError} />
+    <Sheet title={`Mínimo da Liga de ${card.name}`} onClose={onClose}>
+      <Field label="Mínimo da Liga (R$)" inputMode="decimal" placeholder="Ex.: 10" value={value} onChange={(e) => (setValue(e.target.value), setFieldError(undefined))} error={fieldError} />
       <FormError message={error} />
       <Button block className="min-h-[52px]" pending={pending} onClick={() => void save()}>
-        Salvar preço
+        Salvar
       </Button>
     </Sheet>
   );

@@ -25,11 +25,10 @@ type Values = {
   language: string;
   variant: string;
   condition: string;
-  liga: string;
   price: string;
   notes: string;
 };
-const empty: Values = { name: "", tcg: "Pokémon", collection: "", cardNumber: "", language: "PT", variant: "", condition: "NM", liga: "", notes: "", price: "" };
+const empty: Values = { name: "", tcg: "Pokémon", collection: "", cardNumber: "", language: "PT", variant: "", condition: "NM", notes: "", price: "" };
 
 // Rascunho dos campos de texto no aparelho (fotos não cabem no localStorage).
 const draftKey = (sellerId: string) => `bate-carta:rascunho-carta:${sellerId}`;
@@ -133,17 +132,14 @@ export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: st
 
   async function save(then: "stay" | "leave") {
     if (pending) return;
-    const liga = values.liga.trim() ? parseBRL(values.liga) : null;
     const price = parseBRL(values.price);
     const errs: typeof errors = {
       name: values.name.trim() ? undefined : "Informe o nome da carta",
       photos: photos.length ? undefined : "Adicione pelo menos uma foto",
-      liga: values.liga.trim() && liga == null ? "Use o formato 12,50" : undefined,
       // só rapidez por enquanto: quem tocar primeiro leva por este preço
-      price: price && price > MAX_PRICE_CENTS ? "O preço máximo é R$ 100.000" : price && price > 0 ? undefined : values.price.trim() ? "Use o formato 25 ou 12,50" : "Informe o preço da carta",
+      price: price && price > MAX_PRICE_CENTS ? "O preço máximo é R$ 100.000" : price && price > 0 ? undefined : values.price.trim() ? "Use o formato 25 ou 12,50" : "Informe o mínimo da Liga",
     };
     setErrors(errs);
-    if (errs.liga) setMore(true);
     if (Object.values(errs).some(Boolean)) {
       setFormError("Confira os campos destacados.");
       return;
@@ -178,7 +174,7 @@ export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: st
         language: values.language || null,
         variant: values.variant.trim() || null,
         condition: values.condition || null,
-        liga_price_cents: liga,
+        liga_price_cents: price,
         price_cents: price,
         notes: values.notes.trim() || null,
       })
@@ -381,13 +377,13 @@ export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: st
       )}
 
       <Field
-        label="Preço (R$)"
-        placeholder="Ex.: 25"
+        label="Mínimo da Liga (R$)"
+        placeholder="Ex.: 10"
         inputMode="decimal"
         value={values.price}
         onChange={set("price")}
         error={errors.price}
-        hint="Quem tocar primeiro em “Quero esta carta” leva por este valor."
+        hint="Os 4 botões do leilão começam neste valor. Ex.: 10, 11, 12, 13."
       />
 
       <div className="flex items-center justify-between gap-2.5 rounded-sm border border-line bg-surface px-3 py-2 text-[13px]">
@@ -400,7 +396,6 @@ export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: st
         <div className="flex flex-col gap-3">
           <ChoiceChips label="Idioma" options={LANGUAGES} value={values.language} onChange={(v) => update("language", v)} />
           <ChoiceChips label="Condição" options={CONDITIONS} value={values.condition} onChange={(v) => update("condition", v)} />
-          <Field label="Preço Liga (opcional)" placeholder="12,50" inputMode="decimal" value={values.liga} onChange={set("liga")} error={errors.liga} />
           <Select label="Jogo" value={values.tcg} onChange={set("tcg")} options={TCGS} />
           <div className="grid grid-cols-[1fr_120px] gap-2">
             <Field label="Coleção" value={values.collection} onChange={set("collection")} autoComplete="off" />

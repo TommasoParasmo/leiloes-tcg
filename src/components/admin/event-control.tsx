@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { auctionMessage, type AuctionResult } from "@/lib/auction/codes";
-import { breakRemainingMs, formatCountdown, remainingMs } from "@/lib/auction/logic";
+import { breakRemainingMs, formatCountdown, optionsLabel, remainingMs } from "@/lib/auction/logic";
 import type { RoundState } from "@/lib/auction/types";
 import { adminRpc, fetchEventRounds, fetchFreeCards, roundSummary, type FreeCard, type QueueRound } from "@/lib/admin-data";
 import { formatBRL } from "@/lib/money";
@@ -342,7 +342,7 @@ export function EventControl({ event, sellerId, newCardId, groupUrl }: { event: 
                       <span className="sr-only">Mudar preço de </span>
                       {r.card.name}
                     </span>
-                    <span className="block truncate text-xs text-muted">{r.mode === "speed" ? formatBRL(r.fixed_price_cents ?? 0) : roundSummary(r)}</span>
+                    <span className="block truncate text-xs text-muted">{r.mode === "speed" ? formatBRL(r.fixed_price_cents ?? 0) : isQuick(r) && r.bid_options_cents ? optionsLabel(r.bid_options_cents) : roundSummary(r)}</span>
                   </button>
                   <div className="flex">
                     <IconButton label={`Subir ${r.card.name}`} disabled={i === 0 || !!busy} onClick={() => move(i, -1)}>
@@ -445,7 +445,8 @@ function ActiveRound({
   const [reason, setReason] = useState("");
   const paused = round.status === "paused";
   const leader = round.leading_nickname && round.current_amount_cents != null;
-  const speed = round.mode === "speed";
+  const speed = isQuick(round);
+  const options = round.mode === "speed" ? null : round.bid_options_cents;
 
   const cancelForm = cancelling && (
     <form
@@ -489,16 +490,36 @@ function ActiveRound({
           )}
           <p className="font-bold">{card?.name ?? "…"}</p>
           <Pill tone="live" dot>
-            Botão liberado
+            {options ? "Botões liberados" : "Botão liberado"}
           </Pill>
-          <p className="text-sm">
-            Quem tocar primeiro leva por <b className="tabular">{formatBRL(round.fixed_price_cents ?? 0)}</b>
-          </p>
+          {options ? (
+            <>
+              <p className="text-sm tabular">{optionsLabel(options)}</p>
+              <p className="text-sm">
+                {leader ? (
+                  <>
+                    <b>{round.leading_nickname}</b> está levando por <b className="tabular">{formatBRL(round.current_amount_cents ?? 0)}</b>
+                  </>
+                ) : (
+                  <span className="text-muted">Ninguém tocou ainda</span>
+                )}
+              </p>
+              <p className="text-xs text-muted">Quem tocar primeiro em {formatBRL(round.fixed_price_cents ?? 0)} leva na hora.</p>
+            </>
+          ) : (
+            <p className="text-sm">
+              Quem tocar primeiro leva por <b className="tabular">{formatBRL(round.fixed_price_cents ?? 0)}</b>
+            </p>
+          )}
         </div>
 
         {confirmClose ? (
           <div className="flex flex-col gap-2 rounded-md border border-line bg-surface p-3">
-            <p className="text-sm">Ninguém tocou ainda. A carta volta para as cartas livres e você pode leiloar de novo outro dia.</p>
+            <p className="text-sm">
+              {leader
+                ? `${round.leading_nickname} leva ${card?.name ?? "a carta"} por ${formatBRL(round.current_amount_cents ?? 0)}. Não dá para desfazer.`
+                : "Ninguém tocou ainda. A carta volta para as cartas livres e você pode leiloar de novo outro dia."}
+            </p>
             <div className="grid grid-cols-2 gap-2">
               <Button variant="secondary" onClick={() => setConfirmClose(false)}>
                 Esperar mais
@@ -510,13 +531,13 @@ function ActiveRound({
                   onClose();
                 }}
               >
-                Ninguém quis
+                {leader ? "Sim, fechar" : "Ninguém quis"}
               </Button>
             </div>
           </div>
         ) : (
           <Button block variant="secondary" className="min-h-[56px]" pending={busy === "close"} disabled={!!busy} onClick={() => setConfirmClose(true)}>
-            Ninguém quis? Fechar a carta
+            {leader ? `Fechar: ${round.leading_nickname} leva` : "Ninguém quis? Fechar a carta"}
           </Button>
         )}
 
@@ -676,7 +697,14 @@ function IconButton({ label, children, ...rest }: React.ButtonHTMLAttributes<HTM
   );
 }
 
-/** Botão grande do ao vivo: rapidez libera o botão de compra; rodada antiga de lances só abre. */
+/** Rapidez: preço único ou os 4 botões, o maior arremata na hora (sem cronômetro). */
+function isQuick(r: Pick<QueueRound, "mode" | "bid_options_cents" | "fixed_price_cents">): boolean {
+  return r.mode === "speed" || (!!r.bid_options_cents?.length && r.fixed_price_cents != null);
+}
+
+/** Botão grande do ao vivo: rapidez libera os botões de compra; rodada antiga de lances só abre. */
 function nextLabel(r: QueueRound): string {
-  return r.mode === "speed" && r.fixed_price_cents != null ? `Liberar o botão: ${r.card.name} · ${formatBRL(r.fixed_price_cents)}` : `Abrir: ${r.card.name}`;
+  if (r.mode === "speed" && r.fixed_price_cents != null) return `Liberar o botão: ${r.card.name} · ${formatBRL(r.fixed_price_cents)}`;
+  if (isQuick(r) && r.bid_options_cents) return `Liberar os botões: ${r.card.name} · ${optionsLabel(r.bid_options_cents)}`;
+  return `Abrir: ${r.card.name}`;
 }
