@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { auctionMessage, type AuctionResult } from "@/lib/auction/codes";
 import { buyNow, placeBid, withOneRetry } from "@/lib/auction/data";
-import { bidBoxTone, bidChoices, breakRemainingMs, newIdempotencyKey, remainingMs, timerProgress } from "@/lib/auction/logic";
+import { bidChoices, breakRemainingMs, newIdempotencyKey, remainingMs, timerProgress } from "@/lib/auction/logic";
 import type { CardInfo, EventInfo, RoundState } from "@/lib/auction/types";
 import { applyChatEvent, type ChatEvent, type ChatMessage } from "@/lib/chat";
 import { formatBRL } from "@/lib/money";
@@ -12,7 +12,6 @@ import { Pill } from "@/components/ui/pill";
 import { BreakBanner } from "./break-banner";
 import { BidBox } from "./bid-box";
 import { BidButtons } from "./bid-buttons";
-import { BidHistory } from "./bid-history";
 import { BuyButton } from "./buy-button";
 import { CardArt } from "./card-art";
 import { CardTitle } from "./card-title";
@@ -61,8 +60,8 @@ export function LiveRoom({
     if (before.leading_is_me && !round.leading_is_me && round.status === "open" && round.current_amount_cents != null) {
       setToast({
         tone: "live",
-        text: "Seu lance foi superado",
-        detail: `${round.leading_nickname ?? ""} · ${formatBRL(round.current_amount_cents)}`,
+        text: `${round.leading_nickname ?? "Alguém"} deu mais que você`,
+        detail: formatBRL(round.current_amount_cents),
       });
     }
   }, [round]);
@@ -142,7 +141,7 @@ export function LiveRoom({
         : round.status === "cancelled"
           ? "Rodada cancelada pelo leiloeiro."
           : iWon
-            ? `Você arrematou ${card.name} por ${formatBRL(round.current_amount_cents ?? 0)}.`
+            ? `A carta é sua! ${card.name} por ${formatBRL(round.current_amount_cents ?? 0)}.`
             : closed && round.leading_nickname
               ? `${round.leading_nickname} ${round.mode === "speed" ? "arrematou primeiro" : "venceu"}.`
               : breakLeft != null
@@ -175,7 +174,7 @@ export function LiveRoom({
       ) : iWon ? (
         <>
           <WinnerCard amountCents={round.current_amount_cents ?? 0} cardName={card.name} at={round.closed_at} />
-          <WonNextSteps />
+          <WonNextSteps key={round.id} />
         </>
       ) : closed ? (
         <LostCard winner={round.leading_nickname} amountCents={round.current_amount_cents} at={round.closed_at} withMs={round.mode === "speed"} />
@@ -183,9 +182,8 @@ export function LiveRoom({
         <SpeedControls round={round} block={block} pending={pending != null} onBuy={() => submit(null)} />
       ) : (
         <>
-          <BidBox state={round} remaining={remaining} progress={timerProgress(round, remaining)} tone={bidBoxTone(round, remaining)} />
+          <BidBox state={round} remaining={remaining} progress={timerProgress(round, remaining)} />
           <BidControls round={round} block={block} closing={closing} pendingAmount={pending?.amount ?? null} busy={pending != null} onBid={(a) => submit(a)} />
-          <BidHistory bids={round.recent_bids} />
         </>
       )}
       {eventOver && closed && <EventOver cancelled={room.eventStatus === "cancelled"} loggedIn={block !== "not_authenticated"} />}
@@ -269,6 +267,7 @@ function BidControls({
       <BidButtons
         choices={bidChoices(round).map((c) => (closing ? { ...c, disabled: true } : c))}
         fixedOptions={fixed}
+        leading={round.status === "open" && round.leading_is_me}
         pendingAmount={busy ? (pendingAmount ?? -1) : null}
         onBid={onBid}
       />
