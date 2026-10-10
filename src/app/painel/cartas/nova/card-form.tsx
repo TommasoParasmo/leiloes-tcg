@@ -8,7 +8,7 @@ import { Select, TextArea } from "@/components/ui/select";
 import { CARD_PHOTOS_BUCKET } from "@/lib/auction/data";
 import { canOpenPhoto, shrinkPhoto, withTimeout } from "@/lib/image";
 import { PokemonLookup } from "./pokemon-lookup";
-import { cardSummary } from "@/lib/card-summary";
+import { cardSummary, isBlankCard } from "@/lib/card-summary";
 import { MAX_PRICE_CENTS, parseBRL } from "@/lib/money";
 import { createClient } from "@/lib/supabase/client";
 
@@ -130,8 +130,20 @@ export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: st
     setPhotos((p) => [p[i], ...p.filter((_, j) => j !== i)]);
   }
 
+  const blank = isBlankCard(values, photos.length);
+  const done = eventId ? `/painel/eventos/${eventId}` : "/painel/cartas";
+
   async function save(then: "stay" | "leave") {
     if (pending) return;
+    // depois de "Salvar e próxima foto" a tela fica vazia: terminar só sai, sem cobrar a próxima carta
+    if (then === "leave" && blank) {
+      setErrors({});
+      setFormError(null);
+      setSaved(null);
+      router.replace(done);
+      router.refresh();
+      return;
+    }
     const price = parseBRL(values.price);
     const errs: typeof errors = {
       name: values.name.trim() ? undefined : "Informe o nome da carta",
@@ -410,7 +422,7 @@ export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: st
         Salvar e próxima foto
       </Button>
       <button type="submit" disabled={!!pending} aria-busy={pending === "leave" || undefined} className="-mt-1 min-h-11 text-sm font-bold text-muted disabled:opacity-50">
-        {pending === "leave" ? "Salvando…" : eventId ? "Salvar e pôr no leilão" : "Salvar e terminar"}
+        {pending === "leave" ? "Salvando…" : blank ? "Terminar" : eventId ? "Salvar e pôr no leilão" : "Salvar e terminar"}
       </button>
     </form>
   );

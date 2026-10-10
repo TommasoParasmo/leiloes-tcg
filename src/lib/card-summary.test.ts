@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { cardSummary } from "./card-summary";
+import { cardSummary, isBlankCard } from "./card-summary";
+
+describe("isBlankCard", () => {
+  it("só está em branco sem foto, nome e valor", () => {
+    expect(isBlankCard({ name: "", price: "" }, 0)).toBe(true);
+    expect(isBlankCard({ name: "  ", price: " " }, 0)).toBe(true);
+    expect(isBlankCard({ name: "", price: "" }, 1)).toBe(false);
+    expect(isBlankCard({ name: "Pikachu", price: "" }, 0)).toBe(false);
+    expect(isBlankCard({ name: "", price: "10" }, 0)).toBe(false);
+  });
+});
 
 describe("cardSummary", () => {
   const base = { tcg: "Pokémon", language: "PT", condition: "NM", collection: "", cardNumber: "" };
