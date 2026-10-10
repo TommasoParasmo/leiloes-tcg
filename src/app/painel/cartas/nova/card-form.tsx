@@ -137,6 +137,10 @@ export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: st
     if (pending) return;
     // depois de "Salvar e próxima foto" a tela fica vazia: terminar só sai, sem cobrar a próxima carta
     if (then === "leave" && blank) {
+      // o lote acabou: a próxima visita começa do zero, sem jogo/coleção/idioma/condição da carta anterior
+      setValues(empty);
+      setTouched(false);
+      setMore(false);
       setErrors({});
       setFormError(null);
       setSaved(null);
@@ -210,10 +214,10 @@ export function CardForm({ sellerId, eventId }: { sellerId: string; eventId?: st
     const name = values.name.trim();
     // limpa a tela nos dois casos: o Next guarda esta tela montada e a mostra de novo como ficou
     // (sem isso, a próxima carta abria com a anterior preenchida e o botão girando)
-    // mantém jogo, coleção, idioma e condição, que costumam se repetir no lote
+    // na próxima foto mantém jogo, coleção, idioma e condição, que costumam se repetir no lote; ao terminar, zera tudo
     photos.forEach((p) => URL.revokeObjectURL(p.url));
     setPhotos([]);
-    setValues((s) => ({ ...empty, tcg: s.tcg, collection: s.collection, language: s.language, condition: s.condition }));
+    setValues((s) => (then === "leave" ? empty : { ...empty, tcg: s.tcg, collection: s.collection, language: s.language, condition: s.condition }));
     setTouched(false);
     setMore(false);
     setDraftDecided(true);
