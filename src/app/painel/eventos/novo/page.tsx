@@ -24,7 +24,8 @@ async function Guarded() {
   const cards = await fetchFreeCards(sb, sellerId);
   return (
     <main className="mx-auto w-full max-w-md px-4 pb-10 pt-2">
-      <EventForm cards={cards} now={new Date().getTime()} />
+      {/* a tela fica guardada montada entre visitas: chave nova quando chegam cartas novas, senão a lista antiga (vazia) continua */}
+      <EventForm key={cards.map((c) => c.id).join(",")} cards={cards} now={new Date().getTime()} />
     </main>
   );
 }
